@@ -24,7 +24,7 @@ import tensorflow_addons as tfa
 from tensorboard.plugins.hparams import api as hp
 import optuna 
 
-from utils.data import load_multi_dataset, split_data
+from utils.data_v2 import load_multi_dataset, split_data
 from utils.tools import read_yaml, save_log, get_args, ValCallback, TBCallback
 from utils.data import random_resize_crop, random_jitter, random_flip, data_aug, normalize_imagenet, random_grayscale
 from utils.training_tools import mIoU, loss_IoU, DiceBCELoss, ContrastiveLoss, binary_weighted_cross_entropy
@@ -43,6 +43,7 @@ class Trainer:
         self.logger = logger
         self.strategy = strategy
         self.trial = trial
+        
         self.seed=self.config['SEED'] if self.config['SEED'] else None
         
         # define paths and names
@@ -169,10 +170,10 @@ class Trainer:
     
     
     def get_model(self):    
-        if self.config['UNISTYLE'] and self.config['METHOD'] in ['ISW','XDED','IN','KD']:
-            whiten_layers = self.config['WHITEN_LAYERS'] 
-        else:
-            whiten_layers = [],
+        
+        whiten_layers = self.config['WHITEN_LAYERS'] if self.config['UNISTYLE'] \
+                        and self.config['METHOD'] in ['ISW','XDED','IN','KD'] else [],
+        
         # load pretrained model
         backbone = MobileNetV3Large(input_shape=(self.config['IMG_SIZE'], self.config['IMG_SIZE'], 3),
                                     alpha=1.0,

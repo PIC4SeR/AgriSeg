@@ -1,16 +1,11 @@
 #!/bin/bash
     
-domains="vite_reale"
-id=1
+domains="vineyard_real_new"
 
-for meth in "IN"; do
-    for target in $domains; do # Iterate on domains
-        for i in 1; do # Multiple runs
-            date
-            echo "Training: meth=$meth, target=$target"
-
-            python3 main.py --target $target --id $i --method $meth --config utils/config.yaml >> logs/IN.txt
-
-        done
+for target in $domains; do # Iterate on domains
+    for i in 1 2 3 4 5; do # Multiple runs
+        date
+        echo "Training: meth=$meth, target=$target"
+        python3 main.py --target $target --id $i --config utils/config.yaml >> logs/ecml_3.txt
     done
 done

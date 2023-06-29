@@ -52,7 +52,7 @@ def main():
         searcher = HPSearcher(config=config, logger=logger, strategy=strategy, trial=None)
         searcher.hp_search()
 
-    elif config['METHOD'] == 'KD':
+    elif config['METHOD'] in ['KD']:
         distiller = Distiller(config, logger, strategy)
         distiller.train()
         #distiller.test()        

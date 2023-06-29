@@ -123,8 +123,16 @@ def random_resize_crop(x, y, min_p=0.8, input_size=224, seed=None):
     """
     Random crop between min_p% and 100%.
     """
+
+    x = random.randint(0, img.shape[1] - width)
+    y = random.randint(0, img.shape[0] - height)
+    img = img[y:y+height, x:x+width]
+    mask = mask[y:y+height, x:x+width]
+    return img, mask
+    
     stacked_image = tf.concat([x, y], axis=-1)
-    perc = tf.math.floor(tf.random.uniform(shape=[], minval=min_p, maxval=1., dtype=tf.float32, seed=seed) * input_size)
+    perc = tf.random.uniform(shape=[], minval=min_p, maxval=1., dtype=tf.float32, seed=seed)
+    perc = tf.math.floor(perc * img.shape[1])
     image_crops = tf.image.random_crop(stacked_image, [perc,perc,4], seed=seed)
     res_stacked_image = tf.image.resize(image_crops, [input_size,input_size])
     return res_stacked_image[...,:-1], tf.math.round(res_stacked_image[...,-1])
@@ -142,7 +150,7 @@ def load_subdataset(root, config):
         class_names=None,
         color_mode="rgb",
         batch_size=1, # cannot set None in TF 2.6!
-        image_size=(config['IMG_SIZE'], config['IMG_SIZE']),
+        image_size=(config['IMG_SIZE_TEST'][0], config['IMG_SIZE_TEST'][1]),
         shuffle=False,
         #seed=s,
         interpolation="bilinear",
@@ -160,7 +168,7 @@ def load_subdataset(root, config):
         class_names=None,
         color_mode="grayscale",
         batch_size=1, # cannot set None in TF 2.6!
-        image_size=(config['IMG_SIZE'], config['IMG_SIZE']),
+        image_size=(config['IMG_SIZE'][0], config['IMG_SIZE_TEST'][1]),
         shuffle=False,
         #seed=s,
         interpolation="bilinear",

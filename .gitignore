@@ -1,0 +1,8 @@
+bin/
+logs/
+datasets/
+*.ipynb_checkpoints/
+*__pycache__/
+trials/
+demo/
+

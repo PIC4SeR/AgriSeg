@@ -1,7 +1,99 @@
 import tensorflow as tf
 import kmeans1d
+from tensorflow_addons.layers import InstanceNormalization
+import tensorflow.keras.backend as K
 
 
+def unistyle(x, whiten_cov=False):
+    x_mu = tf.math.reduce_mean(x, axis=[2,3], keepdims=True)
+    x_var = tf.math.reduce_variance(x, axis=[2,3], keepdims=True)
+    x_sig = tf.math.sqrt(x_var+1e-6)
+    
+    if whiten_cov:
+        return x-x_mu
+    else:
+        return (x-x_mu)/x_sig
+    
+    
+
+def _instance_norm_block(x, mode=None, p=0.01, eps=1e-5):
+    print(mode)
+    if mode in ['ISW', 'IN']:
+        return InstanceNormalization()(x)
+    elif mode == 'PADAIN':
+        return PAdaIN(p=p, eps=eps)(x)
+    elif mode in ['KD', 'XDED']:
+        return unistyle(x)
+    else:
+        return x
+    
+    
+    
+def INormBlock(mode=None, p=0.01, eps=1e-5):
+    if mode == 'IN':
+        return InstanceNormalization()
+    elif mode == 'PADAIN':
+        return PAdaIN(p=p, eps=eps)
+    else:
+        return tf.keras.layers.Identity()
+    
+
+    
+class PAdaIN(tf.keras.layers.Layer):
+    
+    def __init__(self, p=0.01, eps=1e-5):
+        super(PAdaIN, self).__init__()
+        self.p = p
+        self.eps = eps
+        
+    def call(self, inputs, training=None):
+        
+        if training is None:
+            training = K.learning_phase()
+        
+        permute = tf.random.uniform([], minval=0, maxval=1) < self.p
+        
+        if permute:
+            perm_indices = tf.random.shuffle(tf.range(0, inputs.shape[0]))
+        else:
+            return tf.identity(inputs)
+        
+        shape = inputs.shape
+        N, H, W, C = shape
+
+        out = self.ada_in(inputs, tf.gather(inputs, perm_indices))
+
+        #output = control_flow_util.smart_cond(training, out, lambda: tf.identity(inputs))
+        
+        return out if training else tf.identity(inputs)
+
+    def get_mean_std(self, x):
+        epsilon = self.eps
+        axes = [1, 2]
+        # Compute the mean and standard deviation of a tensor.
+        mean, variance = tf.nn.moments(x, axes=axes, keepdims=True)
+        standard_deviation = tf.sqrt(variance + epsilon)
+        return mean, standard_deviation
+
+    def ada_in(self, style, content):
+        """
+        Computes the AdaIn feature map.
+        Args:
+            style: The style feature map.
+            content: The content feature map.
+        Returns:
+            The AdaIN feature map.
+        """
+        content_mean, content_std = self.get_mean_std(content)
+        style_mean, style_std = self.get_mean_std(style)
+        t = style_std * (content - content_mean) / content_std + style_mean
+        return t
+    
+    def get_config(self):
+        cfg = super().get_config()
+        return cfg 
+    
+    
 
 class CovMatrix_ISW(tf.keras.layers.Layer):
     def __init__(self, dim, relax_denom=0, clusters=50):

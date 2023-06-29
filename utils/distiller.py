@@ -61,11 +61,14 @@ class Distiller(Trainer):
 
         self.get_data(test_only=test)
         self.get_student()
-        self.get_teacher()
+        if not test:
+            self.get_teacher()
         self.get_optimizer()
         self.get_callbacks()        
 
         self.kd_loss_fn = tf.keras.losses.KLDivergence(reduction=tf.keras.losses.Reduction.NONE)
+    
+        print('Distiller Created')
     
     def get_student(self):    
         self.model = self.get_single_model(whiten=True)
@@ -73,9 +76,42 @@ class Distiller(Trainer):
         
     def get_single_model(self, weights=None, feats=True, whiten=False):
         
-        # load pretrained model
-        with self.strategy.scope():
+        whiten_layers = self.config['WHITEN_LAYERS'] if whiten \
+                        and self.config['UNISTYLE'] \
+                        and self.config['METHOD'] in ['KD'] else []
+            
+        if self.strategy:
+            # load pretrained model
+            with self.strategy.scope():
 
+                backbone = MobileNetV3Large(input_shape=(self.config['IMG_SIZE'], self.config['IMG_SIZE'], 3),
+                                            alpha=1.0,
+                                            minimalistic=False,
+                                            include_top=False,
+                                            weights='imagenet',
+                                            input_tensor=None,
+                                            classes=self.config['N_CLASSES'],
+                                            pooling='avg',
+                                            dropout_rate=False,
+                                            mode=self.config['METHOD'], p=self.config['PADAIN']['P'],
+                                            eps=float(self.config['PADAIN']['EPS']),
+                                            whiten_layers=whiten_layers,
+                                            backend=tf.keras.backend, layers=tf.keras.layers, models=tf.keras.models, 
+                                            utils=tf.keras.utils)
+
+                if self.config['CITYSCAPES']:
+                    pre_trained_model = build_model_multi(backbone, False, 20)
+                    pre_trained_model.load_weights(model_dir.joinpath('lr_aspp_pretrain_cityscapes.h5'))
+                else:
+                    pre_trained_model = backbone
+
+                # binary segmentation model
+                model = build_model_binary(pre_trained_model, False, self.config['N_CLASSES'], 
+                                           sigmoid=self.config['LOSS']=='iou', mode=self.config['METHOD'],
+                                           p=self.config['PADAIN']['P'], eps=float(self.config['PADAIN']['EPS']),
+                                           return_feats=feats)
+                
+        else:
             backbone = MobileNetV3Large(input_shape=(self.config['IMG_SIZE'], self.config['IMG_SIZE'], 3),
                                         alpha=1.0,
                                         minimalistic=False,
@@ -85,22 +121,21 @@ class Distiller(Trainer):
                                         classes=self.config['N_CLASSES'],
                                         pooling='avg',
                                         dropout_rate=False,
-                                        inst_norm=self.config['METHOD'], p=self.config['PADAIN']['P'],
+                                        mode=self.config['METHOD'], p=self.config['PADAIN']['P'],
                                         eps=float(self.config['PADAIN']['EPS']),
-                                        whiten_layers=tuple(self.config['WHITEN_LAYERS']) if self.config['UNISTYLE'] and 
-                                                                                             self.config['METHOD'] == 'KD' and 
-                                                                                             whiten
-                                                                                          else (),
+                                        whiten_layers=whiten_layers,
                                         backend=tf.keras.backend, layers=tf.keras.layers, models=tf.keras.models, 
                                         utils=tf.keras.utils)
 
-            # pre_trained_model = build_model_multi(backbone, False, 20)
-            # pre_trained_model.load_weights(model_dir.joinpath('lr_aspp_pretrain_cityscapes.h5'))
-            pre_trained_model = backbone
+            if self.config['CITYSCAPES']:
+                pre_trained_model = build_model_multi(backbone, False, 20)
+                pre_trained_model.load_weights(model_dir.joinpath('lr_aspp_pretrain_cityscapes.h5'))
+            else:
+                pre_trained_model = backbone
 
             # binary segmentation model
             model = build_model_binary(pre_trained_model, False, self.config['N_CLASSES'], 
-                                       sigmoid=self.config['LOSS']=='iou', inst_norm=self.config['METHOD'],
+                                       sigmoid=self.config['LOSS']=='iou', mode=self.config['METHOD'],
                                        p=self.config['PADAIN']['P'], eps=float(self.config['PADAIN']['EPS']),
                                        return_feats=feats)
             
@@ -147,18 +182,16 @@ class Distiller(Trainer):
                 _, feat_b = self.model(x, training=False)
                 aux_loss = self.aux_loss(feat_b, feat)
 
-            if self.config['METHOD'] == 'KD': 
+            elif self.config['METHOD'] in ['KD']: 
                 pred_t = self.teacher(x, training=False)  
-                pred_t = tf.reshape(pred_t,(self.config['BATCH_SIZE'],-1))
-                pred = tf.reshape(pred,(self.config['BATCH_SIZE'],-1))
+                pred_t = tf.reshape(pred_t,(self.config['BATCH_SIZE'], -1))
+                pred = tf.reshape(pred,(self.config['BATCH_SIZE'], -1))
                 
                 aux_loss = self.kd_loss_fn(tf.nn.softmax(pred_t / self.config['KD']['T'], axis=-1),
-                                           tf.nn.softmax(pred / self.config['KD']['T'], axis=-1)) * self.config['KD']['T']**2
+                                           tf.nn.softmax(pred / self.config['KD']['T'], axis=-1)) * self.config['KD']['T'] ** 2
             loss = out_loss + self.config['KD']['ALPHA'] * tf.reduce_mean(aux_loss)
-            # print(loss, out_loss, aux_loss)
             
         grads = tape.gradient(loss, self.model.trainable_variables)
         self.optim.apply_gradients(zip(grads, self.model.trainable_variables))
-
 
         return out_loss, self.config['KD']['ALPHA'] * aux_loss, metr

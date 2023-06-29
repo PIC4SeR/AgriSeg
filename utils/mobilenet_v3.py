@@ -1,17 +1,18 @@
-"""MobileNet v3 models for Keras.
+"""
+MobileNet v3 models for Keras.
 
 The following table describes the performance of MobileNets:
 ------------------------------------------------------------------------
 MACs stands for Multiply Adds
 
-| Classification Checkpoint| MACs(M)| Parameters(M)| Top1 Accuracy| Pixel1 CPU(ms)|
+| Classification Checkpoint                 | MACs(M)| Parameters(M)| Top1 Accuracy| Pixel1 CPU(ms)|
 
-| [mobilenet_v3_large_1.0_224]              | 217 | 5.4 |   75.6   |   51.2   |
-| [mobilenet_v3_large_0.75_224]             | 155 | 4.0 |   73.3   |   39.8   |
-| [mobilenet_v3_large_minimalistic_1.0_224] | 209 | 3.9 |   72.3   |   44.1   |
-| [mobilenet_v3_small_1.0_224]              | 66  | 2.9 |   68.1   |   15.8   |
-| [mobilenet_v3_small_0.75_224]             | 44  | 2.4 |   65.4   |   12.8   |
-| [mobilenet_v3_small_minimalistic_1.0_224] | 65  | 2.0 |   61.9   |   12.2   |
+| [mobilenet_v3_large_1.0_224]              | 217    | 5.4          |   75.6       |   51.2        |
+| [mobilenet_v3_large_0.75_224]             | 155    | 4.0          |   73.3       |   39.8        |
+| [mobilenet_v3_large_minimalistic_1.0_224] | 209    | 3.9          |   72.3       |   44.1        |
+| [mobilenet_v3_small_1.0_224]              | 66     | 2.9          |   68.1       |   15.8        |
+| [mobilenet_v3_small_0.75_224]             | 44     | 2.4          |   65.4       |   12.8        |
+| [mobilenet_v3_small_minimalistic_1.0_224] | 65     | 2.0          |   61.9       |   12.2        |
 
 The weights for all 6 models are obtained and
 translated from the Tensorflow checkpoints
@@ -26,6 +27,7 @@ This file contains building code for MobileNetV3, based on
 (https://arxiv.org/pdf/1905.02244.pdf) (ICCV 2019)
 
 """
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -46,6 +48,7 @@ def get_submodules_from_kwargs(kwargs):
         if key not in ['backend', 'layers', 'models', 'utils']:
             raise TypeError('Invalid keyword argument: %s', key)
     return backend, layers, models, utils
+
 
 
 def correct_pad(backend, inputs, kernel_size):
@@ -74,14 +77,16 @@ def correct_pad(backend, inputs, kernel_size):
     return ((correct[0] - adjust[0], correct[0]),
             (correct[1] - adjust[1], correct[1]))
 
+
+
 import os
 import warnings
 
 from utils import imagenet_utils
 from utils.imagenet_utils import _obtain_input_shape
 from utils.imagenet_utils import decode_predictions
-from utils.models import PAdaIN, _instance_norm_block
-from tensorflow_addons.layers import InstanceNormalization
+
+from utils.instance_norm import PAdaIN, _instance_norm_block, unistyle
 
 backend = None
 layers = None
@@ -110,6 +115,7 @@ WEIGHTS_HASHES = {
         '99cd97fb2fcdad2bf028eb838de69e37',
         '1efbf7e822e03f250f45faa3c6bbe156'),
 }
+
 
 
 def preprocess_input(x, **kwargs):
@@ -143,6 +149,7 @@ def hard_swish(x):
 # slim/nets/mobilenet/mobilenet.py
 
 
+
 def _depth(v, divisor=8, min_value=None):
     if min_value is None:
         min_value = divisor
@@ -152,9 +159,10 @@ def _depth(v, divisor=8, min_value=None):
         new_v += divisor
     return new_v
     
+    
 
-def _se_block(inputs, filters, se_ratio, prefix, whiten=False, inst_norm=None):
-    features = []
+def _se_block(inputs, filters, se_ratio, prefix):
+    
     x = layers.GlobalAveragePooling2D(name=prefix + 'squeeze_excite/AvgPool')(inputs)
     if backend.image_data_format() == 'channels_first':
         x = layers.Reshape((filters, 1, 1))(x)
@@ -171,13 +179,6 @@ def _se_block(inputs, filters, se_ratio, prefix, whiten=False, inst_norm=None):
                       name=prefix + 'squeeze_excite/Conv_1')(x)
     x = layers.Activation(hard_sigmoid)(x)
     
-    if whiten:
-        if inst_norm == 'ISW':
-            x = InstanceNormalization()(x)
-            features = x
-        elif inst_norm == 'KD':
-            x = unistyle(x)
-    
     if backend.backend() == 'theano':
         # For the Theano backend, we have to explicitly make
         # the excitation weights broadcastable.
@@ -186,11 +187,14 @@ def _se_block(inputs, filters, se_ratio, prefix, whiten=False, inst_norm=None):
             output_shape=lambda input_shape: input_shape,
             name=prefix + 'squeeze_excite/broadcast')(x)
     x = layers.Multiply(name=prefix + 'squeeze_excite/Mul')([inputs, x])
-    return x, features
+    
+    return x
+
 
 
 def _inverted_res_block(x, expansion, filters, kernel_size, stride,
-                        se_ratio, activation, block_id, inst_norm=None, p=None, eps=None, whiten_layers=[]):
+                        se_ratio, activation, block_id, mode=None, p=None, eps=None, whiten_layers=[]):
+    
     features = []
     channel_axis = 1 if backend.image_data_format() == 'channels_first' else -1
     shortcut = x
@@ -205,24 +209,15 @@ def _inverted_res_block(x, expansion, filters, kernel_size, stride,
                           use_bias=False,
                           name=prefix + 'expand')(x)
         
-        if inst_norm == 'PADAIN':
-            x = _instance_norm_block(x, mode=inst_norm, p=p, eps=eps)
+        if mode == 'PADAIN':
+            x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
         
         x = layers.BatchNormalization(axis=channel_axis,
                                       epsilon=1e-3,
                                       momentum=0.999,
                                       name=prefix + 'expand/BatchNorm')(x)
         x = layers.Activation(activation, name=prefix + 'expand/act_1')(x)
-        
-        if block_id in whiten_layers and inst_norm!='ISW':
-            if inst_norm == 'ISW':
-                x = InstanceNormalization()(x)
-                features.append(x)
-            elif inst_norm == 'KD':
-                x = unistyle(x)
-            elif inst_norm == 'IN':
-                x = _instance_norm_block(x, mode=inst_norm, p=p, eps=eps)
-            
+      
     if stride == 2:
         x = layers.ZeroPadding2D(padding=correct_pad(backend, x, kernel_size),
                                  name=prefix + 'depthwise/pad')(x)
@@ -232,8 +227,8 @@ def _inverted_res_block(x, expansion, filters, kernel_size, stride,
                                use_bias=False,
                                name=prefix + 'depthwise')(x)
     
-    if inst_norm == 'PADAIN':
-        x = _instance_norm_block(x, mode=inst_norm, p=p, eps=eps)
+    if mode == 'PADAIN':
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
     
     x = layers.BatchNormalization(axis=channel_axis,
                                   epsilon=1e-3,
@@ -241,19 +236,11 @@ def _inverted_res_block(x, expansion, filters, kernel_size, stride,
                                   name=prefix + 'depthwise/BatchNorm')(x)
     x = layers.Activation(activation, name=prefix + 'expand/act_2')(x)
 
-    if block_id in whiten_layers:
-        if inst_norm == 'ISW':
-            x = InstanceNormalization()(x)
-            features.append(x)
-        elif inst_norm == 'KD':
-            x = unistyle(x)
-        elif inst_norm == 'IN':
-            x = _instance_norm_block(x, mode=inst_norm, p=p, eps=eps)
+    if block_id in whiten_layers and mode in []:
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
 
     if se_ratio:
-        x, feats = _se_block(x, _depth(infilters * expansion), se_ratio, prefix, whiten=False,#block_id in whiten_layers,
-                             inst_norm=inst_norm)
-        features.append(feats)
+        x = _se_block(x, _depth(infilters * expansion), se_ratio, prefix)
         
     x = layers.Conv2D(filters,
                       kernel_size=1,
@@ -261,12 +248,8 @@ def _inverted_res_block(x, expansion, filters, kernel_size, stride,
                       use_bias=False,
                       name=prefix + 'project')(x)
     
-    if inst_norm == 'PADAIN':
-        x = _instance_norm_block(x, mode=inst_norm, p=p, eps=eps)
-        
-#     if block_id in whiten_layers:
-#         if inst_norm == 'IN':
-#             x = _instance_norm_block(x, mode=inst_norm, p=p, eps=eps)
+    if mode == 'PADAIN':
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
     
     x = layers.BatchNormalization(axis=channel_axis,
                                   epsilon=1e-3,
@@ -275,7 +258,14 @@ def _inverted_res_block(x, expansion, filters, kernel_size, stride,
 
     if stride == 1 and infilters == filters:
         x = layers.Add(name=prefix + 'Add')([shortcut, x])
+        
+    if block_id in whiten_layers and mode in ['ISW', 'IN', 'XDED', 'KD']:
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
+        if mode == 'ISW':
+            features.append(x) 
+            
     return x, features
+
 
 
 def MobileNetV3(stack_fn,
@@ -290,7 +280,7 @@ def MobileNetV3(stack_fn,
                 classes=1000,
                 pooling=None,
                 dropout_rate=0.2,
-                inst_norm=None, p=None, eps=None, whiten_layers=[],
+                mode=None, p=None, eps=None, whiten_layers=[],
                 **kwargs):
     
     """Instantiates the MobileNetV3 architecture.
@@ -356,10 +346,9 @@ def MobileNetV3(stack_fn,
         ValueError: in case of invalid model type, argument for `weights`,
             or invalid input shape when weights='imagenet'
     """
+    
     global backend, layers, models, keras_utils
     backend, layers, models, keras_utils = get_submodules_from_kwargs(kwargs)
-
-    features = []
     
     if not (weights in {'imagenet', None} or os.path.exists(weights)):
         raise ValueError('The `weights` argument should be either '
@@ -472,8 +461,8 @@ def MobileNetV3(stack_fn,
                       use_bias=False,
                       name='Conv')(x)
     
-    if inst_norm in ['PADAIN']:
-        x = _instance_norm_block(x, mode=inst_norm, p=p, eps=eps)
+    if mode in ['PADAIN']:
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
         
     x = layers.BatchNormalization(axis=channel_axis,
                                   epsilon=1e-3,
@@ -481,17 +470,14 @@ def MobileNetV3(stack_fn,
                                   name='Conv/BatchNorm')(x)
     x = layers.Activation(activation)(x)
 
-    if -1 in whiten_layers:
-        if inst_norm == 'ISW':
-            x = InstanceNormalization()(x)
-            features.append(x)
-        elif inst_norm == 'KD':
-            x = unistyle(x)
-        elif inst_norm == 'IN':
-            x = _instance_norm_block(x, mode=inst_norm, p=p, eps=eps)
+    if -1 in whiten_layers and mode in ['ISW', 'XDED', 'IN', 'KD']:
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
+#        if mode == 'ISW':
+#            features.append(x)
         
-    x, feats = stack_fn(x, kernel, activation, se_ratio, whiten_layers=whiten_layers)
-    features.append(feats)
+    x, feats = stack_fn(x, kernel, activation, se_ratio, mode=mode, whiten_layers=whiten_layers)
+    
+#    features.append(feats)
     
     last_conv_ch = _depth(backend.int_shape(x)[channel_axis] * 6)
 
@@ -505,18 +491,16 @@ def MobileNetV3(stack_fn,
                       padding='same',
                       use_bias=False,
                       name='Conv_1')(x)
-    if inst_norm == 'PADAIN':
-        x = _instance_norm_block(x, mode=inst_norm, p=p, eps=eps)
-    if -1 in whiten_layers:
-        if inst_norm == 'IN':
-            x = _instance_norm_block(x, mode=inst_norm, p=p, eps=eps)
+    
+    if mode in ['PADAIN']:
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
             
     x = layers.BatchNormalization(axis=channel_axis,
                                   epsilon=1e-3,
                                   momentum=0.999,
                                   name='Conv_1/BatchNorm')(x)
     x = layers.Activation(activation)(x)
-
+    
     if include_top:
         x = layers.GlobalAveragePooling2D()(x)
         if channel_axis == 1:
@@ -565,10 +549,9 @@ def MobileNetV3(stack_fn,
                                             BASE_WEIGHT_PATH + file_name,
                                             cache_subdir='models',
                                             file_hash=file_hash)
-        if inst_norm == 'ISW':
-            model.load_weights(weights_path, skip_mismatch=True, by_name=True)
-        else:
-            model.load_weights(weights_path, skip_mismatch=True, by_name=True)
+        
+        model.load_weights(weights_path, skip_mismatch=True, by_name=True)
+    
     elif weights is not None:
         model.load_weights(weights)
 
@@ -584,28 +567,35 @@ def MobileNetV3Large(input_shape=None,
                      classes=1000,
                      pooling=None,
                      dropout_rate=0.2,
-                     inst_norm=None, p=None, eps=None, whiten_layers=[],
+                     mode=None, 
+                     p=None, 
+                     eps=None, 
+                     whiten_layers=[],
                      **kwargs):
-    
-    def stack_fn(x, kernel, activation, se_ratio, whiten_layers=[]):
+
+    def stack_fn(x, kernel, activation, se_ratio, mode=mode, whiten_layers=[]):
         def depth(d):
             return _depth(d * alpha)
-        x, f1 = _inverted_res_block(x, 1, depth(16), 3, 1, None, relu, 0, inst_norm, p, eps, whiten_layers)
-        x, f2 = _inverted_res_block(x, 4, depth(24), 3, 2, None, relu, 1, inst_norm, p, eps, whiten_layers)
-        x, _ = _inverted_res_block(x, 3, depth(24), 3, 1, None, relu, 2, inst_norm, p, eps, whiten_layers)
-        x, _ = _inverted_res_block(x, 3, depth(40), kernel, 2, se_ratio, relu, 3, inst_norm, p, eps, whiten_layers)
-        x, _ = _inverted_res_block(x, 3, depth(40), kernel, 1, se_ratio, relu, 4, inst_norm, p, eps, whiten_layers)
-        x, _ = _inverted_res_block(x, 3, depth(40), kernel, 1, se_ratio, relu, 5, inst_norm, p, eps, whiten_layers)
-        x, _ = _inverted_res_block(x, 6, depth(80), 3, 2, None, activation, 6, inst_norm, p, eps, whiten_layers)
-        x, _ = _inverted_res_block(x, 2.5, depth(80), 3, 1, None, activation, 7, inst_norm, p, eps, whiten_layers)
-        x, _ = _inverted_res_block(x, 2.3, depth(80), 3, 1, None, activation, 8, inst_norm, p, eps, whiten_layers)
-        x, _ = _inverted_res_block(x, 2.3, depth(80), 3, 1, None, activation, 9, inst_norm, p, eps, whiten_layers)
-        x, _ = _inverted_res_block(x, 6, depth(112), 3, 1, se_ratio, activation, 10, inst_norm, p, eps, whiten_layers)
-        x, _ = _inverted_res_block(x, 6, depth(112), 3, 1, se_ratio, activation, 11, inst_norm, p, eps, whiten_layers)
-        x, _ = _inverted_res_block(x, 6, depth(160), kernel, 2, se_ratio, activation, 12, inst_norm, p, eps, whiten_layers)
-        x, _ = _inverted_res_block(x, 6, depth(160), kernel, 1, se_ratio, activation, 13, inst_norm, p, eps, whiten_layers)
-        x, _ = _inverted_res_block(x, 6, depth(160), kernel, 1, se_ratio, activation, 14, inst_norm, p, eps, whiten_layers)
+        # x, expansion, filters, kernel_size, stride, se_ratio, activation, block_id, mode, p, eps, whiten_layers
+        x, f1 = _inverted_res_block(x, 1, depth(16), 3, 1, None, relu, 0, mode, p, eps, whiten_layers)
+        x, f2 = _inverted_res_block(x, 4, depth(24), 3, 2, None, relu, 1, mode, p, eps, whiten_layers)
+        x, _ = _inverted_res_block(x, 3, depth(24), 3, 1, None, relu, 2, mode, p, eps, whiten_layers)
+        x, _ = _inverted_res_block(x, 3, depth(40), kernel, 2, se_ratio, relu, 3, mode, p, eps, whiten_layers)
+        x, _ = _inverted_res_block(x, 3, depth(40), kernel, 1, se_ratio, relu, 4, mode, p, eps, whiten_layers)
+        x, _ = _inverted_res_block(x, 3, depth(40), kernel, 1, se_ratio, relu, 5, mode, p, eps, whiten_layers)
+        x, _ = _inverted_res_block(x, 6, depth(80), 3, 2, None, activation, 6, mode, p, eps, whiten_layers)
+        x, _ = _inverted_res_block(x, 2.5, depth(80), 3, 1, None, activation, 7, mode, p, eps, whiten_layers)
+        x, _ = _inverted_res_block(x, 2.3, depth(80), 3, 1, None, activation, 8, mode, p, eps, whiten_layers)
+        x, _ = _inverted_res_block(x, 2.3, depth(80), 3, 1, None, activation, 9, mode, p, eps, whiten_layers)
+        x, _ = _inverted_res_block(x, 6, depth(112), 3, 1, se_ratio, activation, 10, mode, p, eps, whiten_layers)
+        x, _ = _inverted_res_block(x, 6, depth(112), 3, 1, se_ratio, activation, 11, mode, p, eps, whiten_layers)
+        x, _ = _inverted_res_block(x, 6, depth(160), kernel, 2, se_ratio, activation, 12, mode, p, eps, whiten_layers)
+        x, _ = _inverted_res_block(x, 6, depth(160), kernel, 1, se_ratio, activation, 13, mode, p, eps, whiten_layers)
+        x, _ = _inverted_res_block(x, 6, depth(160), kernel, 1, se_ratio, activation, 14, mode, p, eps, whiten_layers)
         return x, f1+f2
+    
+        # alternating stride 1-2
+        # block id 0..14
     
     return MobileNetV3(stack_fn,
                        1280,
@@ -619,20 +609,11 @@ def MobileNetV3Large(input_shape=None,
                        classes,
                        pooling,
                        dropout_rate,
-                       inst_norm=inst_norm, p=p, eps=eps, whiten_layers=whiten_layers,
+                       mode=mode, 
+                       p=p, 
+                       eps=eps,
+                       whiten_layers=whiten_layers,
                        **kwargs)
 
 
 setattr(MobileNetV3Large, '__doc__', MobileNetV3.__doc__)
-
-
-def unistyle(x, whiten_cov=False):
-    #print('Unistyle')
-    x_mu = tf.math.reduce_mean(x, axis=[2,3], keepdims=True)
-    x_var = tf.math.reduce_variance(x, axis=[2,3], keepdims=True)
-    x_sig = tf.math.sqrt(x_var+1e-6)
-    
-    if whiten_cov:
-        return x-x_mu
-    else:
-        return (x-x_mu)/x_sig
