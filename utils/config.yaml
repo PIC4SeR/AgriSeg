@@ -4,7 +4,7 @@ SEED: 0
 VERBOSE: False
 
 # model name
-NAME: 'IN'
+NAME: 'ISW'
 SAVE_BEST: True
 
 HP_SEARCH: False
@@ -16,12 +16,12 @@ CITYSCAPES: False
 
 # DG methodology
 DG: True
-METHOD: 'IN'
+METHOD: 'ISW'
 PADAIN:
     P: 0.001
     EPS: 1e-5
 UNISTYLE: True
-WHITEN_LAYERS: [0,1]
+WHITEN_LAYERS: [-1,0,1]
 
 # dataset
 TARGET: 'pear'

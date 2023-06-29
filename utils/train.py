@@ -68,9 +68,10 @@ class Trainer:
         self.get_optimizer()
         self.get_callbacks()
     
+        self.cov_matrix_layer = None
         if config['METHOD'] == 'ISW':
             self.whitening = True
-            in_channel_list = [16, 64, 72] #[16, 16, 64]
+            in_channel_list = [16, 16, 24] #[16, 16, 64]
             self.cov_matrix_layer = []
             for i, c in enumerate(in_channel_list):
                 self.cov_matrix_layer.append(CovMatrix_ISW(dim=c, relax_denom=0, clusters=3))
@@ -192,7 +193,7 @@ class Trainer:
 
         if self.config['CITYSCAPES']:
             pre_trained_model = build_model_multi(backbone, False, 20)
-            pre_trained_model.load_weights(model_dir.joinpath('lr_aspp_pretrain_cityscapes.h5'))
+            pre_trained_model.load_weights(self.model_dir.joinpath('lr_aspp_pretrain_cityscapes.h5'))
         else:
             pre_trained_model = backbone
             
@@ -290,9 +291,9 @@ class Trainer:
             for step, (x, y) in enumerate(self.ds_train, 1):
                 self.step = step
                 if self.strategy is None:
-                    train_loss, train_aux, train_metr = self.train_step(x, y)
+                    train_loss, train_aux, train_metr, self.cov_matrix_layer = self.train_step(x, y, self.cov_matrix_layer)
                 else:
-                    train_loss, train_aux, train_metr = self.distributed_train_step(x, y)
+                    train_loss, train_aux, train_metr, self.cov_matrix_layer = self.distributed_train_step(x, y, self.cov_matrix_layer)
                 
                 self.train_loss_mean(tf.reduce_sum(train_loss))
                 self.train_aux_mean(tf.reduce_sum(train_aux))
@@ -358,12 +359,12 @@ class Trainer:
         out += f'Val {btv:.4f} Best Test {btm:.4f} ({bte})'
         self.logger.save_log(out)
         
-        return best_test_metr if self.config['SAVE_BEST'] else metr
+        return best_test_metr if self.config['SAVE_BEST'] else test_metr
         
         
         
-    @tf.function    
-    def train_step(self, x, y):
+    #@tf.function    
+    def train_step(self, x, y, cov_matrix_layer=None):
         
         with tf.GradientTape() as tape:
 
@@ -385,7 +386,7 @@ class Trainer:
                 for i, f in enumerate(feat):
                     feat_array = feat_array.write(i,f)
                     
-                for index in range(len(self.cov_matrix_layer)):
+                for index in range(len(cov_matrix_layer)):
                     if self.step < 2:
                         
                         # Instance Whitening
@@ -393,20 +394,21 @@ class Trainer:
                         B, H, W, C = sh[0], sh[1], sh[2], sh[3]
                         HW = H * W
                         f_map = tf.reshape(tf.experimental.numpy.ascontiguousarray(feat_array.read(index)),[B, -1, C]) 
-                        eye, reverse_eye = self.cov_matrix_layer[int(index)].get_eye_matrix()
+                        eye, reverse_eye = cov_matrix_layer[index].get_eye_matrix()
                         f_cor = tf.linalg.matmul(tf.transpose(f_map,[0,2,1]),f_map) 
+                        # print(f_cor.shape, eye.shape)
                         f_cor = f_cor / tf.cast((HW-1), tf.float32) + (1e-5 * tf.cast(eye, tf.float32))  
                         
                         off_diag_elements = f_cor * reverse_eye
                         v = tf.math.reduce_variance(off_diag_elements, axis=0)
-                        self.cov_matrix_layer[index].set_variance_of_covariance(v)
+                        cov_matrix_layer[index].set_variance_of_covariance(v)
                         
                     else:
-                        eye, mask_matrix, margin, num_remove_cov = self.cov_matrix_layer[index].get_mask_matrix()
+                        eye, mask_matrix, margin, num_remove_cov = cov_matrix_layer[index].get_mask_matrix()
                         loss = instance_whitening_loss(feat_array.read(index), eye, mask_matrix, margin, num_remove_cov)
                         aux_loss = aux_loss + loss
                         
-                aux_loss = aux_loss / tf.cast(len(self.cov_matrix_layer), tf.float32)
+                aux_loss = aux_loss / tf.cast(len(cov_matrix_layer), tf.float32)
                 
             out_loss = self.compute_loss(y, pred[...,0])
             loss = out_loss + aux_loss
@@ -417,16 +419,16 @@ class Trainer:
 
         self.optim.apply_gradients(zip(grads, self.model.trainable_variables))
 
-        return out_loss, aux_loss, metr
+        return out_loss, aux_loss, metr, cov_matrix_layer
         
         
     @tf.function
-    def distributed_train_step(self, x, y):
-        per_replica_losses, per_replica_aux, per_replica_metr = self.strategy.run(self.train_step, args=(x, y))
+    def distributed_train_step(self, x, y, cov_matrix_layer=None):
+        per_replica_losses, per_replica_aux, per_replica_metr, cov_matrix_layer = self.strategy.run(self.train_step, args=(x, y, cov_matrix_layer))
         loss = self.strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, axis=None)
         aux = self.strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_aux, axis=None)
         metr = self.strategy.reduce(tf.distribute.ReduceOp.MEAN, per_replica_metr, axis=None)
-        return tf.reduce_mean(loss), tf.reduce_mean(aux), tf.reduce_mean(metr)
+        return tf.reduce_mean(loss), tf.reduce_mean(aux), tf.reduce_mean(metr), cov_matrix_layer
         
         
     @tf.function        
