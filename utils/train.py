@@ -71,7 +71,7 @@ class Trainer:
         self.cov_matrix_layer = None
         if config['METHOD'] == 'ISW':
             self.whitening = True
-            in_channel_list = [16, 16, 24] #[16, 16, 64]
+            in_channel_list = [16, 24, 24] #[16, 16, 64]
             self.cov_matrix_layer = []
             for i, c in enumerate(in_channel_list):
                 self.cov_matrix_layer.append(CovMatrix_ISW(dim=c, relax_denom=0, clusters=3))
@@ -396,7 +396,7 @@ class Trainer:
                         f_map = tf.reshape(tf.experimental.numpy.ascontiguousarray(feat_array.read(index)),[B, -1, C]) 
                         eye, reverse_eye = cov_matrix_layer[index].get_eye_matrix()
                         f_cor = tf.linalg.matmul(tf.transpose(f_map,[0,2,1]),f_map) 
-                        # print(f_cor.shape, eye.shape)
+                        #print(f_cor.shape, eye.shape)
                         f_cor = f_cor / tf.cast((HW-1), tf.float32) + (1e-5 * tf.cast(eye, tf.float32))  
                         
                         off_diag_elements = f_cor * reverse_eye

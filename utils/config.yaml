@@ -21,7 +21,7 @@ PADAIN:
     P: 0.001
     EPS: 1e-5
 UNISTYLE: True
-WHITEN_LAYERS: [-1,0,1]
+WHITEN_LAYERS: [0,1,2]
 
 # dataset
 TARGET: 'pear'
@@ -54,7 +54,7 @@ LOSS: 'bce'
 
 AUX_LOSS: False
 KD:
-    ALPHA: 0.01
+    ALPHA: 0.001
     T: 2
  
 CL:
