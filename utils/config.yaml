@@ -21,7 +21,7 @@ PADAIN:
     P: 0.001
     EPS: 1e-5
 UNISTYLE: True
-WHITEN_LAYERS: [0,1,2]
+WHITEN_LAYERS: [-1,0,1]
 
 # dataset
 TARGET: 'pear'
@@ -41,7 +41,7 @@ MODEL_PATH: 'bin/'
 LOG_PATH: 'logs/'
 
 # preprocess
-IMG_SIZE_TEST: [640,480]
+# IMG_SIZE_TEST: [640,480]
 IMG_SIZE: 224
 SPLIT_SIZE: 0.1
 BATCH_SIZE: 64
@@ -54,7 +54,7 @@ LOSS: 'bce'
 
 AUX_LOSS: False
 KD:
-    ALPHA: 0.001
+    ALPHA: 0.0001
     T: 2
  
 CL:

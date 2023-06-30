@@ -71,7 +71,7 @@ class Trainer:
         self.cov_matrix_layer = None
         if config['METHOD'] == 'ISW':
             self.whitening = True
-            in_channel_list = [16, 24, 24] #[16, 16, 64]
+            in_channel_list = [16, 16, 24] #[16, 24, 24]
             self.cov_matrix_layer = []
             for i, c in enumerate(in_channel_list):
                 self.cov_matrix_layer.append(CovMatrix_ISW(dim=c, relax_denom=0, clusters=3))
@@ -385,16 +385,14 @@ class Trainer:
                 feat_array = tf.TensorArray(tf.float32, len(feat), infer_shape=False, clear_after_read=False)
                 for i, f in enumerate(feat):
                     feat_array = feat_array.write(i,f)
-                    
-                for index in range(len(cov_matrix_layer)):
+                for index in range(len(self.cov_matrix_layer)):
                     if self.step < 2:
-                        
                         # Instance Whitening
                         sh = tf.shape(feat_array.read(index))  # i-th feature size (B X C X H X W)
                         B, H, W, C = sh[0], sh[1], sh[2], sh[3]
                         HW = H * W
                         f_map = tf.reshape(tf.experimental.numpy.ascontiguousarray(feat_array.read(index)),[B, -1, C]) 
-                        eye, reverse_eye = cov_matrix_layer[index].get_eye_matrix()
+                        eye, reverse_eye = self.cov_matrix_layer[int(index)].get_eye_matrix()
                         f_cor = tf.linalg.matmul(tf.transpose(f_map,[0,2,1]),f_map) 
                         #print(f_cor.shape, eye.shape)
                         f_cor = f_cor / tf.cast((HW-1), tf.float32) + (1e-5 * tf.cast(eye, tf.float32))  
@@ -404,12 +402,12 @@ class Trainer:
                         cov_matrix_layer[index].set_variance_of_covariance(v)
                         
                     else:
-                        eye, mask_matrix, margin, num_remove_cov = cov_matrix_layer[index].get_mask_matrix()
+                        eye, mask_matrix, margin, num_remove_cov = self.cov_matrix_layer[index].get_mask_matrix()
                         loss = instance_whitening_loss(feat_array.read(index), eye, mask_matrix, margin, num_remove_cov)
-                        aux_loss = aux_loss + loss
+                        aux_loss = aux_loss + loss * self.config['KD']['ALPHA']
                         
                 aux_loss = aux_loss / tf.cast(len(cov_matrix_layer), tf.float32)
-                
+
             out_loss = self.compute_loss(y, pred[...,0])
             loss = out_loss + aux_loss
         
