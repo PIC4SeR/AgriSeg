@@ -101,7 +101,7 @@ class Distiller(Trainer):
 
                 if self.config['CITYSCAPES']:
                     pre_trained_model = build_model_multi(backbone, False, 20)
-                    pre_trained_model.load_weights(model_dir.joinpath('lr_aspp_pretrain_cityscapes.h5'))
+                    pre_trained_model.load_weights(self.model_dir.joinpath('lr_aspp_pretrain_cityscapes.h5'))
                 else:
                     pre_trained_model = backbone
 
@@ -129,7 +129,7 @@ class Distiller(Trainer):
 
             if self.config['CITYSCAPES']:
                 pre_trained_model = build_model_multi(backbone, False, 20)
-                pre_trained_model.load_weights(model_dir.joinpath('lr_aspp_pretrain_cityscapes.h5'))
+                pre_trained_model.load_weights(self.model_dir.joinpath('lr_aspp_pretrain_cityscapes.h5'))
             else:
                 pre_trained_model = backbone
 
