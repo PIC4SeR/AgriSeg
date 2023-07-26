@@ -67,6 +67,7 @@ class Distiller(Trainer):
         self.get_callbacks()        
 
         self.kd_loss_fn = tf.keras.losses.KLDivergence(reduction=tf.keras.losses.Reduction.NONE)
+        self.cov_matrix_layer = None
     
         print('Distiller Created')
     
@@ -167,7 +168,7 @@ class Distiller(Trainer):
    
     
     @tf.function    
-    def train_step(self, x, y):
+    def train_step(self, x, y, cov_matrix_layer=None):
         
         with tf.GradientTape() as tape:
             
@@ -194,4 +195,4 @@ class Distiller(Trainer):
         grads = tape.gradient(loss, self.model.trainable_variables)
         self.optim.apply_gradients(zip(grads, self.model.trainable_variables))
 
-        return out_loss, self.config['KD']['ALPHA'] * aux_loss, metr
+        return out_loss, self.config['KD']['ALPHA'] * aux_loss, metr, None

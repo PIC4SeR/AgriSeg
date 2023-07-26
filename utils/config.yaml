@@ -4,7 +4,7 @@ SEED: 0
 VERBOSE: False
 
 # model name
-NAME: 'ISW'
+NAME: 'KD'
 SAVE_BEST: True
 
 HP_SEARCH: False
@@ -16,12 +16,12 @@ CITYSCAPES: False
 
 # DG methodology
 DG: True
-METHOD: 'ISW'
+METHOD: 'KD'
 PADAIN:
     P: 0.001
     EPS: 1e-5
-UNISTYLE: True
-WHITEN_LAYERS: [-1,0,1]
+UNISTYLE: False
+WHITEN_LAYERS: []
 
 # dataset
 TARGET: 'pear'
@@ -36,12 +36,12 @@ RND_JITTER: 1.0
 RND_JITTER_RNG: 0.4
 
 # paths
-DATA_PATH: 'datasets/'
+DATA_PATH: '../AgriSeg_Dataset/'
 MODEL_PATH: 'bin/'
 LOG_PATH: 'logs/'
 
 # preprocess
-# IMG_SIZE_TEST: [640,480]
+IMG_SIZE_TEST: [640,480]
 IMG_SIZE: 224
 SPLIT_SIZE: 0.1
 BATCH_SIZE: 64
@@ -54,7 +54,7 @@ LOSS: 'bce'
 
 AUX_LOSS: False
 KD:
-    ALPHA: 0.0001
+    ALPHA: 0.01
     T: 2
  
 CL:

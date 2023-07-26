@@ -168,7 +168,7 @@ def load_subdataset(root, config):
         class_names=None,
         color_mode="grayscale",
         batch_size=1, # cannot set None in TF 2.6!
-        image_size=(config['IMG_SIZE'][0], config['IMG_SIZE_TEST'][1]),
+        image_size=(config['IMG_SIZE_TEST'][0], config['IMG_SIZE_TEST'][1]),
         shuffle=False,
         #seed=s,
         interpolation="bilinear",
