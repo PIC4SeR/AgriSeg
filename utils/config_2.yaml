@@ -1,0 +1,76 @@
+# general
+GPU: [0]
+SEED: 0
+VERBOSE: False
+
+# model name
+NAME: 'WLKD2'
+SAVE_BEST: True
+
+HP_SEARCH: False
+HP_SEARCH_NAME: 'kd_aug_rome'
+HP_SEARCH_DIR: 'trials'
+N_TRIALS: 12
+
+CITYSCAPES: False
+
+# DG methodology
+DG: True
+METHOD: 'None'
+PADAIN:
+    P: 0.001
+    EPS: 1e-5
+UNISTYLE: True
+WHITEN_LAYERS: [0,1]
+
+# dataset
+TARGET: 'pear'
+SOURCE: ['tree_2','chard','lettuce','vineyard']
+SUBSAMPLE: True
+
+STYLE_AUG: True
+RND_FLIP: 0.5
+RND_CROP: 0.5
+RND_GREY: 0.1
+RND_JITTER: 1.0
+RND_JITTER_RNG: 0.4
+
+# paths
+DATA_PATH: '../AgriSeg_Dataset/'
+MODEL_PATH: 'bin/'
+LOG_PATH: 'logs/'
+
+# preprocess
+IMG_SIZE_TEST: [640,480]
+IMG_SIZE: 224
+SPLIT_SIZE: 0.1
+BATCH_SIZE: 64
+
+# training
+N_CLASSES: 1 # 1 for binary
+N_EPOCHS: 50
+
+LOSS: 'bce'
+
+AUX_LOSS: False
+KD:
+    ALPHA: 0.01
+    T: 2
+ 
+CL:
+    TEMP: 0.5
+    WEIGHT: 0.0
+    
+OPTIMIZER: 'adamw'
+SGD:
+    LR: 1e-2
+    MOMENTUM: 0.8
+    DECAY: 0.1
+    NESTEROV: False
+ADAM:
+    LR: 3e-4
+ADAMW:
+    LR: 5e-3
+    LR_END: 5e-6
+    DECAY: 1
+    WD: 1e-5

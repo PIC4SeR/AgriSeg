@@ -26,8 +26,11 @@ def main():
     config['TARGET'] = args.target if args.target is not None else config['TARGET']
     config['NAME'] = args.name if args.name is not None else config['NAME']
     config['METHOD'] = args.method if args.method is not None else config['METHOD']
+    config['KD']['ALPHA'] = args.alpha if args.alpha is not None else config['KD']['ALPHA']
+    config['KD']['T'] = args.temperature if args.temperature is not None else config['KD']['T']
+    config['WHITEN_LAYERS'] = args.whiten_layers if args.whiten_layers is not None else config['WHITEN_LAYERS']
     config['ID'] = args.id if args.id is not None else 0
-
+    config['ERM_TEACHERS'] = True if args.erm_teacher else False
     
     #select the working GPU
     gpus = tf.config.experimental.list_physical_devices('GPU')

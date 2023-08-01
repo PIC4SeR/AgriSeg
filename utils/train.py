@@ -53,7 +53,7 @@ class Trainer:
         tb_name = f"{self.config['TARGET']}_{self.config['ID']}_{datetime.datetime.now().strftime('%m_%d_%H_%M')}"
         self.tb_dir = self.log_dir.joinpath("tb").joinpath(tb_name)
 
-        self.model_file = self.model_dir.joinpath(f"{self.model_name}_{self.config['ID']}.h5")
+        self.model_file = self.model_dir.joinpath(f"{tb_name}.h5")
         self.log_file = self.log_dir.joinpath(f"{self.model_name}.txt")
         #save_log(config, self.log_file)
 

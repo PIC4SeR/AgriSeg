@@ -4,7 +4,7 @@ SEED: 0
 VERBOSE: False
 
 # model name
-NAME: 'KD'
+NAME: 'ERMKD'
 SAVE_BEST: True
 
 HP_SEARCH: False
@@ -16,7 +16,7 @@ CITYSCAPES: False
 
 # DG methodology
 DG: True
-METHOD: 'KD'
+METHOD: 'None'
 PADAIN:
     P: 0.001
     EPS: 1e-5

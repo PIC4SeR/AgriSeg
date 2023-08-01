@@ -153,7 +153,10 @@ class Distiller(Trainer):
     
     def get_teacher(self):
         domains = [w for w in self.config['SOURCE'] if w != self.config['TARGET']]
-        weights = [f'teachers/teacher_aug_{w}.h5' for w in domains]
+        if self.config['ERM_TEACHERS']:
+            weights = [f'teachers/erm/teacher_aug_{self.config["TARGET"]}.h5']
+        else:
+            weights = [f'teachers/teacher_aug_{w}.h5' for w in domains]
         print(f'Loaded Teachers: {domains}')
         
         models = [self.get_single_model(w, feats=False) for w in weights]

@@ -170,6 +170,10 @@ def get_args():
     
     # DG Methodology
     parser.add_argument("--method", default=None, help="DG methodology")
+    parser.add_argument("--alpha", type=float, default=None, help="Auxiliary loss weight")
+    parser.add_argument("--temperature", type=float, default=None, help="Auxiliary loss temperature")
+    parser.add_argument("--whiten_layers", type=list, default=None, help="Layers to whiten")
+    parser.add_argument("--erm_teacher", default=False, help="ERM teachers", action="store_true")
     
     return parser.parse_args()
 
