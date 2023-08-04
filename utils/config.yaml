@@ -20,7 +20,7 @@ METHOD: 'None'
 PADAIN:
     P: 0.001
     EPS: 1e-5
-UNISTYLE: False
+UNISTYLE: True
 WHITEN_LAYERS: []
 
 # dataset
