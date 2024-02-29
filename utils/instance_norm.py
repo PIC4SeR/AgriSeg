@@ -1,4 +1,3 @@
-import torch
 import tensorflow as tf
 import kmeans1d
 from tensorflow_addons.layers import InstanceNormalization
