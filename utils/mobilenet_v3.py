@@ -187,10 +187,13 @@ def MobileNetV3(stack_fn,
 
     channel_axis = 1 if backend.image_data_format() == 'channels_first' else -1
 
-    if mode == 'KD' and wcta:
-        aug_input = _instance_norm_block(img_input, mode='KD_WCTA')
+    if include_preprocessing:
+        aug_input = layers.Rescaling(scale=1.0 / 127.5, offset=-1.0)(img_input)
     else:
         aug_input = img_input
+
+    if mode == 'KD' and wcta:
+        aug_input = _instance_norm_block(aug_input, mode='KD_WCTA')
 
     if minimalistic:
         kernel = 3
@@ -200,9 +203,6 @@ def MobileNetV3(stack_fn,
         kernel = 5
         activation = hard_swish
         se_ratio = 0.25
-
-    if include_preprocessing:
-        aug_input = layers.Rescaling(scale=1.0 / 127.5, offset=-1.0)(aug_input)
 
     x = layers.ZeroPadding2D(padding=correct_pad(backend, aug_input, 3),
                              name='Conv_pad')(aug_input)

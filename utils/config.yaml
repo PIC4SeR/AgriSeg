@@ -4,7 +4,7 @@ SEED: 0
 VERBOSE: False
 
 # model name
-NAME: 'WCTAKD'
+NAME: 'KD_Norm'
 SAVE_BEST: True
 
 HP_SEARCH: False
@@ -28,14 +28,14 @@ TARGET: 'pear'
 SOURCE: ['tree_2','chard','lettuce','vineyard']
 SUBSAMPLE: True
 NORM: 'tf' # 'tf' or 'torch'
-STYLE_AUG: False
+STYLE_AUG: True
 RND_FLIP: 0.5
 RND_CROP: 0.5
 RND_GREY: 0.1
 RND_JITTER: 1.0
 RND_JITTER_RNG: 0.4
 ZCA: False
-WCTA: True
+WCTA: False
 
 # paths
 DATA_PATH: '../AgriSeg_Dataset/'
