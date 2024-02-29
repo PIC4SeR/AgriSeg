@@ -5,4 +5,4 @@ datasets/
 *__pycache__/
 trials/
 demo/
-
+.vscode/

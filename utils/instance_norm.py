@@ -1,8 +1,7 @@
+import torch
 import tensorflow as tf
 import kmeans1d
 from tensorflow_addons.layers import InstanceNormalization
-import tensorflow.keras.backend as K
-
 
 def unistyle(x, whiten_cov=False):
     x_mu = tf.math.reduce_mean(x, axis=[2,3], keepdims=True)
@@ -16,7 +15,7 @@ def unistyle(x, whiten_cov=False):
     
     
 
-def _instance_norm_block(x, mode=None, p=0.01, eps=1e-5):
+def _instance_norm_block(x, mode=None, p=0.01, eps=1e-5, training=None):
     print(mode)
     if mode in ['ISW', 'IN']:
         return InstanceNormalization()(x)
@@ -24,6 +23,9 @@ def _instance_norm_block(x, mode=None, p=0.01, eps=1e-5):
         return PAdaIN(p=p, eps=eps)(x)
     elif mode in ['KD', 'XDED']:
         return unistyle(x)
+    elif mode == 'KD_WCTA':
+        return WCTA()(x, training=training)
+    
     else:
         return x
     
@@ -34,6 +36,8 @@ def INormBlock(mode=None, p=0.01, eps=1e-5):
         return InstanceNormalization()
     elif mode == 'PADAIN':
         return PAdaIN(p=p, eps=eps)
+    elif mode == 'WCTA':
+        return WCTA()
     else:
         return tf.keras.layers.Identity()
     
@@ -49,7 +53,7 @@ class PAdaIN(tf.keras.layers.Layer):
     def call(self, inputs, training=None):
         
         if training is None:
-            training = K.learning_phase()
+            training = tf.keras.backend.learning_phase()
         
         permute = tf.random.uniform([], minval=0, maxval=1) < self.p
         
@@ -89,10 +93,65 @@ class PAdaIN(tf.keras.layers.Layer):
         t = style_std * (content - content_mean) / content_std + style_mean
         return t
     
+
+class WCTA(tf.keras.layers.Layer):
+    def __init__(self):
+        super(WCTA, self).__init__()
+        
+    def call(self, inputs, training=None):
+        if training is None:
+            training = tf.keras.backend.learning_phase()
+
+        perm_indices = tf.random.shuffle(tf.range(0, inputs.shape[0]))
+
+        out = self.transfer_global_statistics(inputs, tf.gather(inputs, perm_indices))        
+        return out if training else tf.identity(inputs)
+
+    def transfer_global_statistics(self, trg, src):
+        trg = tf.transpose(trg, [0, 3, 1, 2])
+        src = tf.transpose(src, [0, 3, 1, 2])
+
+        src_shape = tf.shape(src)
+        batch_size = src_shape[0]
+        chans = src_shape[1]
+        src_height = src_shape[2]
+        src_width = src_shape[3]
+        trg_shape = tf.shape(trg)
+        trg_height = trg_shape[2]
+        trg_width = trg_shape[3]
+
+        src_flattened = tf.reshape(src, (batch_size, chans, -1)) # [B x C x H1*W1]
+        trg_flattened = tf.reshape(trg, (batch_size, chans, -1)) # [B x C x H2*W2]
+        src_mean = tf.reduce_mean(src_flattened, axis=-1, keepdims=True) # [B, C, 1]
+        trg_mean = tf.reduce_mean(trg_flattened, axis=-1, keepdims=True) # [B, C, 1]
+        src_reduced = src_flattened - src_mean # [B x C x H1*W1]
+        trg_reduced = trg_flattened - trg_mean # [B x C x H2*W2]
+        src_cov_mat = tf.linalg.matmul(src_reduced, src_reduced, transpose_b=True) / float(src_height*src_width - 1)# [B x C x C]
+        trg_cov_mat = tf.linalg.matmul(trg_reduced, trg_reduced, transpose_b=True) / float(trg_height*trg_width - 1) # [B x C x C]
+        src_eigvals, src_eigvecs = tf.linalg.eigh(src_cov_mat) # eigval -> [B, C], eigvecs -> [B, C, C]
+        src_eigvals = tf.clip_by_value(src_eigvals, clip_value_min=1e-8, clip_value_max=float(tf.reduce_max(src_eigvals))) # valid op since covmat is positive (semi-)definit
+        src_eigvals_sqrt = tf.sqrt(src_eigvals)[..., None] # [B, C, 1]
+        trg_eigvals, trg_eigvecs = tf.linalg.eigh(trg_cov_mat) # eigval -> [B, C], eigvecs -> [B, C, C]
+        trg_eigvals = tf.clip_by_value(trg_eigvals, clip_value_min=1e-8, clip_value_max=float(tf.reduce_max(trg_eigvals))) # valid op since covmat is positive (semi-)definit
+        trg_eigvals_sqrt = tf.sqrt(trg_eigvals)[..., None] # [B, C, 1]
+
+        # transfer color statistics form source to target
+        W_trg = tf.linalg.matmul(trg_eigvecs, (1 / trg_eigvals_sqrt) * trg_eigvecs, transpose_b=True)
+        trg_white = tf.linalg.matmul(W_trg, trg_reduced)
+        W_src_inv = tf.linalg.matmul(src_eigvecs, src_eigvals_sqrt * src_eigvecs, transpose_b=True)
+        trg_transformed = tf.linalg.matmul(W_src_inv, trg_white) + src_mean
+        trg_transformed = tf.reshape(trg_transformed, (batch_size, chans, trg_height, trg_width))
+
+        alpha = tf.random.uniform((batch_size, 1, 1, 1))
+        alpha = tf.clip_by_value(alpha, clip_value_min=0.0, clip_value_max=0.95)
+        trg_transformed = (alpha * trg) + ((1 - alpha) * trg_transformed)
+
+        trg_transformed = tf.transpose(trg_transformed, [0, 2, 3, 1])
+        return trg_transformed
+
     def get_config(self):
         cfg = super().get_config()
         return cfg 
-    
     
 
 class CovMatrix_ISW(tf.keras.layers.Layer):

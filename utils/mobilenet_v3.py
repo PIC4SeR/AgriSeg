@@ -1,33 +1,3 @@
-"""
-MobileNet v3 models for Keras.
-
-The following table describes the performance of MobileNets:
-------------------------------------------------------------------------
-MACs stands for Multiply Adds
-
-| Classification Checkpoint                 | MACs(M)| Parameters(M)| Top1 Accuracy| Pixel1 CPU(ms)|
-
-| [mobilenet_v3_large_1.0_224]              | 217    | 5.4          |   75.6       |   51.2        |
-| [mobilenet_v3_large_0.75_224]             | 155    | 4.0          |   73.3       |   39.8        |
-| [mobilenet_v3_large_minimalistic_1.0_224] | 209    | 3.9          |   72.3       |   44.1        |
-| [mobilenet_v3_small_1.0_224]              | 66     | 2.9          |   68.1       |   15.8        |
-| [mobilenet_v3_small_0.75_224]             | 44     | 2.4          |   65.4       |   12.8        |
-| [mobilenet_v3_small_minimalistic_1.0_224] | 65     | 2.0          |   61.9       |   12.2        |
-
-The weights for all 6 models are obtained and
-translated from the Tensorflow checkpoints
-from TensorFlow checkpoints found [here]
-(https://github.com/tensorflow/models/tree/master/research/
-slim/nets/mobilenet/README.md).
-
-# Reference
-
-This file contains building code for MobileNetV3, based on
-[Searching for MobileNetV3]
-(https://arxiv.org/pdf/1905.02244.pdf) (ICCV 2019)
-
-"""
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -36,8 +6,6 @@ _KERAS_BACKEND = None
 _KERAS_LAYERS = None
 _KERAS_MODELS = None
 _KERAS_UTILS = None
-
-import tensorflow as tf
 
 def get_submodules_from_kwargs(kwargs):
     backend = kwargs.get('backend', _KERAS_BACKEND)
@@ -48,8 +16,6 @@ def get_submodules_from_kwargs(kwargs):
         if key not in ['backend', 'layers', 'models', 'utils']:
             raise TypeError('Invalid keyword argument: %s', key)
     return backend, layers, models, utils
-
-
 
 def correct_pad(backend, inputs, kernel_size):
     """Returns a tuple for zero-padding for 2D convolution with downsampling.
@@ -77,16 +43,10 @@ def correct_pad(backend, inputs, kernel_size):
     return ((correct[0] - adjust[0], correct[0]),
             (correct[1] - adjust[1], correct[1]))
 
-
-
 import os
 import warnings
 
-from utils import imagenet_utils
-from utils.imagenet_utils import _obtain_input_shape
-from utils.imagenet_utils import decode_predictions
-
-from utils.instance_norm import PAdaIN, _instance_norm_block, unistyle
+from utils.instance_norm import _instance_norm_block
 
 backend = None
 layers = None
@@ -116,158 +76,6 @@ WEIGHTS_HASHES = {
         '1efbf7e822e03f250f45faa3c6bbe156'),
 }
 
-
-
-def preprocess_input(x, **kwargs):
-    """Preprocesses a numpy array encoding a batch of images.
-
-    # Arguments
-        x: a 4D numpy array consists of RGB values within [0, 255].
-
-    # Returns
-        Preprocessed array.
-    """
-    return imagenet_utils.preprocess_input(x, mode='tf', **kwargs)
-
-
-def relu(x):
-    return layers.ReLU()(x)
-
-
-def hard_sigmoid(x):
-    return layers.ReLU(6.)(x + 3.) * (1. / 6.)
-
-
-def hard_swish(x):
-    return layers.Multiply()([layers.Activation(hard_sigmoid)(x), x])
-
-
-# This function is taken from the original tf repo.
-# It ensures that all layers have a channel number that is divisible by 8
-# It can be seen here:
-# https://github.com/tensorflow/models/blob/master/research/
-# slim/nets/mobilenet/mobilenet.py
-
-
-
-def _depth(v, divisor=8, min_value=None):
-    if min_value is None:
-        min_value = divisor
-    new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
-    # Make sure that round down does not go down by more than 10%.
-    if new_v < 0.9 * v:
-        new_v += divisor
-    return new_v
-    
-    
-
-def _se_block(inputs, filters, se_ratio, prefix):
-    
-    x = layers.GlobalAveragePooling2D(name=prefix + 'squeeze_excite/AvgPool')(inputs)
-    if backend.image_data_format() == 'channels_first':
-        x = layers.Reshape((filters, 1, 1))(x)
-    else:
-        x = layers.Reshape((1, 1, filters))(x)
-    x = layers.Conv2D(_depth(filters * se_ratio),
-                      kernel_size=1,
-                      padding='same',
-                      name=prefix + 'squeeze_excite/Conv')(x)
-    x = layers.ReLU(name=prefix + 'squeeze_excite/Relu')(x)
-    x = layers.Conv2D(filters,
-                      kernel_size=1,
-                      padding='same',
-                      name=prefix + 'squeeze_excite/Conv_1')(x)
-    x = layers.Activation(hard_sigmoid)(x)
-    
-    if backend.backend() == 'theano':
-        # For the Theano backend, we have to explicitly make
-        # the excitation weights broadcastable.
-        x = layers.Lambda(
-            lambda br: backend.pattern_broadcast(br, [True, True, True, False]),
-            output_shape=lambda input_shape: input_shape,
-            name=prefix + 'squeeze_excite/broadcast')(x)
-    x = layers.Multiply(name=prefix + 'squeeze_excite/Mul')([inputs, x])
-    
-    return x
-
-
-
-def _inverted_res_block(x, expansion, filters, kernel_size, stride,
-                        se_ratio, activation, block_id, mode=None, p=None, eps=None, whiten_layers=[]):
-    
-    features = []
-    channel_axis = 1 if backend.image_data_format() == 'channels_first' else -1
-    shortcut = x
-    prefix = 'expanded_conv/'
-    infilters = backend.int_shape(x)[channel_axis]
-    if block_id:
-        # Expand
-        prefix = 'expanded_conv_{}/'.format(block_id)
-        x = layers.Conv2D(_depth(infilters * expansion),
-                          kernel_size=1,
-                          padding='same',
-                          use_bias=False,
-                          name=prefix + 'expand')(x)
-        
-        if mode == 'PADAIN':
-            x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
-        
-        x = layers.BatchNormalization(axis=channel_axis,
-                                      epsilon=1e-3,
-                                      momentum=0.999,
-                                      name=prefix + 'expand/BatchNorm')(x)
-        x = layers.Activation(activation, name=prefix + 'expand/act_1')(x)
-      
-    if stride == 2:
-        x = layers.ZeroPadding2D(padding=correct_pad(backend, x, kernel_size),
-                                 name=prefix + 'depthwise/pad')(x)
-    x = layers.DepthwiseConv2D(kernel_size,
-                               strides=stride,
-                               padding='same' if stride == 1 else 'valid',
-                               use_bias=False,
-                               name=prefix + 'depthwise')(x)
-    
-    if mode == 'PADAIN':
-        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
-    
-    x = layers.BatchNormalization(axis=channel_axis,
-                                  epsilon=1e-3,
-                                  momentum=0.999,
-                                  name=prefix + 'depthwise/BatchNorm')(x)
-    x = layers.Activation(activation, name=prefix + 'expand/act_2')(x)
-
-    if block_id in whiten_layers and mode in []:
-        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
-
-    if se_ratio:
-        x = _se_block(x, _depth(infilters * expansion), se_ratio, prefix)
-        
-    x = layers.Conv2D(filters,
-                      kernel_size=1,
-                      padding='same',
-                      use_bias=False,
-                      name=prefix + 'project')(x)
-    
-    if mode == 'PADAIN':
-        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
-    
-    x = layers.BatchNormalization(axis=channel_axis,
-                                  epsilon=1e-3,
-                                  momentum=0.999,
-                                  name=prefix + 'project/BatchNorm')(x)
-
-    if stride == 1 and infilters == filters:
-        x = layers.Add(name=prefix + 'Add')([shortcut, x])
-        
-    if block_id in whiten_layers and mode in ['ISW', 'IN', 'XDED', 'KD']:
-        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
-        if mode == 'ISW':
-            features.append(x) 
-            
-    return x, features
-
-
-
 def MobileNetV3(stack_fn,
                 last_point_ch,
                 input_shape=None,
@@ -280,72 +88,9 @@ def MobileNetV3(stack_fn,
                 classes=1000,
                 pooling=None,
                 dropout_rate=0.2,
-                mode=None, p=None, eps=None, whiten_layers=[],
+                include_preprocessing=True,
+                mode=None, p=None, eps=None, whiten_layers=[], wcta=False,
                 **kwargs):
-    
-    """Instantiates the MobileNetV3 architecture.
-
-    # Arguments
-        stack_fn: a function that returns output tensor for the
-            stacked residual blocks.
-        last_point_ch: number channels at the last layer (before top)
-        input_shape: optional shape tuple, to be specified if you would
-            like to use a model with an input img resolution that is not
-            (224, 224, 3).
-            It should have exactly 3 inputs channels (224, 224, 3).
-            You can also omit this option if you would like
-            to infer input_shape from an input_tensor.
-            If you choose to include both input_tensor and input_shape then
-            input_shape will be used if they match, if the shapes
-            do not match then we will throw an error.
-            E.g. `(160, 160, 3)` would be one valid value.
-        alpha: controls the width of the network. This is known as the
-            depth multiplier in the MobileNetV3 paper, but the name is kept for
-            consistency with MobileNetV1 in Keras.
-            - If `alpha` < 1.0, proportionally decreases the number
-                of filters in each layer.
-            - If `alpha` > 1.0, proportionally increases the number
-                of filters in each layer.
-            - If `alpha` = 1, default number of filters from the paper
-                are used at each layer.
-        model_type: MobileNetV3 is defined as two models: large and small. These
-        models are targeted at high and low resource use cases respectively.
-        minimalistic: In addition to large and small models this module also contains
-            so-called minimalistic models, these models have the same per-layer
-            dimensions characteristic as MobilenetV3 however, they don't utilize any
-            of the advanced blocks (squeeze-and-excite units, hard-swish, and 5x5
-            convolutions). While these models are less efficient on CPU, they are
-            much more performant on GPU/DSP.
-        include_top: whether to include the fully-connected
-            layer at the top of the network.
-        weights: one of `None` (random initialization),
-              'imagenet' (pre-training on ImageNet),
-              or the path to the weights file to be loaded.
-        input_tensor: optional Keras tensor (i.e. output of
-            `layers.Input()`)
-            to use as image input for the model.
-        classes: optional number of classes to classify images
-            into, only to be specified if `include_top` is True, and
-            if no `weights` argument is specified.
-        pooling: optional pooling mode for feature extraction
-            when `include_top` is `False`.
-            - `None` means that the output of the model will be
-                the 4D tensor output of the
-                last convolutional layer.
-            - `avg` means that global average pooling
-                will be applied to the output of the
-                last convolutional layer, and thus
-                the output of the model will be a 2D tensor.
-            - `max` means that global max pooling will
-                be applied.
-        dropout_rate: fraction of the input units to drop on the last layer
-    # Returns
-        A Keras model instance.
-
-    # Raises
-        ValueError: in case of invalid model type, argument for `weights`,
-            or invalid input shape when weights='imagenet'
-    """
     
     global backend, layers, models, keras_utils
     backend, layers, models, keras_utils = get_submodules_from_kwargs(kwargs)
@@ -442,6 +187,10 @@ def MobileNetV3(stack_fn,
 
     channel_axis = 1 if backend.image_data_format() == 'channels_first' else -1
 
+    if mode == 'KD' and wcta:
+        aug_input = _instance_norm_block(img_input, mode='KD_WCTA')
+    else:
+        aug_input = img_input
 
     if minimalistic:
         kernel = 3
@@ -452,8 +201,11 @@ def MobileNetV3(stack_fn,
         activation = hard_swish
         se_ratio = 0.25
 
-    x = layers.ZeroPadding2D(padding=correct_pad(backend, img_input, 3),
-                             name='Conv_pad')(img_input)
+    if include_preprocessing:
+        aug_input = layers.Rescaling(scale=1.0 / 127.5, offset=-1.0)(aug_input)
+
+    x = layers.ZeroPadding2D(padding=correct_pad(backend, aug_input, 3),
+                             name='Conv_pad')(aug_input)
     x = layers.Conv2D(16,
                       kernel_size=3,
                       strides=(2, 2),
@@ -557,7 +309,6 @@ def MobileNetV3(stack_fn,
 
     return model
 
-
 def MobileNetV3Large(input_shape=None,
                      alpha=1.0,
                      minimalistic=False,
@@ -567,10 +318,12 @@ def MobileNetV3Large(input_shape=None,
                      classes=1000,
                      pooling=None,
                      dropout_rate=0.2,
+                     include_preprocessing=True,
                      mode=None, 
                      p=None, 
                      eps=None, 
                      whiten_layers=[],
+                     wcta=False,
                      **kwargs):
 
     def stack_fn(x, kernel, activation, se_ratio, mode=mode, whiten_layers=[]):
@@ -609,11 +362,133 @@ def MobileNetV3Large(input_shape=None,
                        classes,
                        pooling,
                        dropout_rate,
+                       include_preprocessing=include_preprocessing,
                        mode=mode, 
                        p=p, 
                        eps=eps,
                        whiten_layers=whiten_layers,
+                       wcta=wcta,
                        **kwargs)
 
 
-setattr(MobileNetV3Large, '__doc__', MobileNetV3.__doc__)
+
+def relu(x):
+    return layers.ReLU()(x)
+
+def hard_sigmoid(x):
+    return layers.ReLU(6.)(x + 3.) * (1. / 6.)
+
+def hard_swish(x):
+    return layers.Multiply()([layers.Activation(hard_sigmoid)(x), x])
+
+def _depth(v, divisor=8, min_value=None):
+    if min_value is None:
+        min_value = divisor
+    new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
+    # Make sure that round down does not go down by more than 10%.
+    if new_v < 0.9 * v:
+        new_v += divisor
+    return new_v
+    
+def _se_block(inputs, filters, se_ratio, prefix):
+    x = layers.GlobalAveragePooling2D(name=prefix + 'squeeze_excite/AvgPool')(inputs)
+    if backend.image_data_format() == 'channels_first':
+        x = layers.Reshape((filters, 1, 1))(x)
+    else:
+        x = layers.Reshape((1, 1, filters))(x)
+    x = layers.Conv2D(_depth(filters * se_ratio),
+                      kernel_size=1,
+                      padding='same',
+                      name=prefix + 'squeeze_excite/Conv')(x)
+    x = layers.ReLU(name=prefix + 'squeeze_excite/Relu')(x)
+    x = layers.Conv2D(filters,
+                      kernel_size=1,
+                      padding='same',
+                      name=prefix + 'squeeze_excite/Conv_1')(x)
+    x = layers.Activation(hard_sigmoid)(x)
+    
+    if backend.backend() == 'theano':
+        # For the Theano backend, we have to explicitly make
+        # the excitation weights broadcastable.
+        x = layers.Lambda(
+            lambda br: backend.pattern_broadcast(br, [True, True, True, False]),
+            output_shape=lambda input_shape: input_shape,
+            name=prefix + 'squeeze_excite/broadcast')(x)
+    x = layers.Multiply(name=prefix + 'squeeze_excite/Mul')([inputs, x])
+    
+    return x
+
+def _inverted_res_block(x, expansion, filters, kernel_size, stride,
+                        se_ratio, activation, block_id, mode=None, p=None, eps=None, whiten_layers=[]):
+    
+    features = []
+    channel_axis = 1 if backend.image_data_format() == 'channels_first' else -1
+    shortcut = x
+    prefix = 'expanded_conv/'
+    infilters = backend.int_shape(x)[channel_axis]
+    if block_id:
+        # Expand
+        prefix = 'expanded_conv_{}/'.format(block_id)
+        x = layers.Conv2D(_depth(infilters * expansion),
+                          kernel_size=1,
+                          padding='same',
+                          use_bias=False,
+                          name=prefix + 'expand')(x)
+        
+        if mode == 'PADAIN':
+            x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
+        
+        x = layers.BatchNormalization(axis=channel_axis,
+                                      epsilon=1e-3,
+                                      momentum=0.999,
+                                      name=prefix + 'expand/BatchNorm')(x)
+        x = layers.Activation(activation, name=prefix + 'expand/act_1')(x)
+      
+    if stride == 2:
+        x = layers.ZeroPadding2D(padding=correct_pad(backend, x, kernel_size),
+                                 name=prefix + 'depthwise/pad')(x)
+    x = layers.DepthwiseConv2D(kernel_size,
+                               strides=stride,
+                               padding='same' if stride == 1 else 'valid',
+                               use_bias=False,
+                               name=prefix + 'depthwise')(x)
+    
+    if mode == 'PADAIN':
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
+    
+    x = layers.BatchNormalization(axis=channel_axis,
+                                  epsilon=1e-3,
+                                  momentum=0.999,
+                                  name=prefix + 'depthwise/BatchNorm')(x)
+    x = layers.Activation(activation, name=prefix + 'expand/act_2')(x)
+
+    if block_id in whiten_layers and mode in []:
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
+
+    if se_ratio:
+        x = _se_block(x, _depth(infilters * expansion), se_ratio, prefix)
+        
+    x = layers.Conv2D(filters,
+                      kernel_size=1,
+                      padding='same',
+                      use_bias=False,
+                      name=prefix + 'project')(x)
+    
+    if mode == 'PADAIN':
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
+    
+    x = layers.BatchNormalization(axis=channel_axis,
+                                  epsilon=1e-3,
+                                  momentum=0.999,
+                                  name=prefix + 'project/BatchNorm')(x)
+
+    if stride == 1 and infilters == filters:
+        x = layers.Add(name=prefix + 'Add')([shortcut, x])
+        
+    if block_id in whiten_layers and mode in ['ISW', 'IN', 'XDED', 'KD']:
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
+        if mode == 'ISW':
+            features.append(x) 
+            
+    return x, features
+

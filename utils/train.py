@@ -26,11 +26,11 @@ import optuna
 
 from utils.data import load_multi_dataset, split_data
 from utils.tools import read_yaml, save_log, get_args, ValCallback, TBCallback
-from utils.data import random_resize_crop, random_jitter, random_flip, data_aug, normalize_imagenet, random_grayscale
+from utils.data import random_resize_crop, random_jitter, random_flip, data_aug, normalize_imagenet, random_grayscale, zca_whitening
 from utils.training_tools import mIoU, loss_IoU, DiceBCELoss, ContrastiveLoss, binary_weighted_cross_entropy
 from utils.models import build_model_multi, build_model_binary
 from utils.cityscapes_utils import CityscapesDataset
-from utils.mobilenet_v3 import MobileNetV3Large 
+from utils.mobilenet_v3_2 import MobileNetV3Large 
 from utils.lovasz_loss import lovasz_hinge
 from utils.instance_norm import CovMatrix_ISW, instance_whitening_loss
 from utils.xded import pixelwise_XDEDLoss
@@ -135,6 +135,8 @@ class Trainer:
                 self.ds_train = self.ds_train.map(lambda x, y: random_grayscale(x, y, p=self.config['RND_GREY'],
                                                                                 seed=self.seed),
                                                   tf.data.experimental.AUTOTUNE)
+            if self.config['ZCA']:
+                self.ds_train = self.ds_train.map(lambda x, y: zca_whitening(x, y), tf.data.experimental.AUTOTUNE)
             
             self.ds_train = self.ds_train.batch(self.config['BATCH_SIZE'], drop_remainder=True)
             self.ds_train = self.ds_train.prefetch(tf.data.experimental.AUTOTUNE)
@@ -184,10 +186,12 @@ class Trainer:
                                     classes=self.config['N_CLASSES'],
                                     pooling='avg',
                                     dropout_rate=False,
+                                    include_preprocessing=self.config['NORM']=='tf',
                                     mode=self.config['METHOD'], 
                                     p=self.config['PADAIN']['P'],
                                     eps=float(self.config['PADAIN']['EPS']),
                                     whiten_layers=whiten_layers,
+                                    wcta=self.config['WCTA'],
                                     backend=tf.keras.backend, layers=tf.keras.layers, models=tf.keras.models, 
                                     utils=tf.keras.utils)
 
@@ -363,7 +367,7 @@ class Trainer:
         
         
         
-    #@tf.function    
+    @tf.function    
     def train_step(self, x, y, cov_matrix_layer=None):
         
         with tf.GradientTape() as tape:

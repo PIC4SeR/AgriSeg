@@ -210,8 +210,8 @@ class TBCallback(tf.keras.callbacks.Callback):
             summary_value = summary.value.add()
             summary_value.simple_value = value
             summary_value.tag = name
-            writer.add_summary(summary, epoch)
-            writer.flush()
+            self.writer.add_summary(summary, epoch)
+            self.writer.flush()
             
 def seed_everything(seed: int):
     tf.random.set_seed(seed)  # set random seed for keras, numpy, tensorflow, and the 'random' module

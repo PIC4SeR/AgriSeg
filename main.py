@@ -8,6 +8,7 @@ warnings.filterwarnings('ignore')
 import argparse
 import time
 
+import torch
 import tensorflow as tf
 
 from utils.tools import read_yaml, get_args, Logger, seed_everything

@@ -1,14 +1,4 @@
-from tensorflow.keras.models import Model,load_model
-
-from tensorflow.keras.layers import Conv2D, BatchNormalization, ReLU, Activation, Input, Add, AveragePooling2D
-from tensorflow.keras.layers import GlobalAveragePooling2D, Reshape,Dropout, Multiply, Flatten,UpSampling2D
-from tensorflow.keras.losses import BinaryCrossentropy
-
-from tensorflow.keras.metrics import MeanIoU
-from tensorflow_addons.layers import InstanceNormalization
-from tensorflow.python.keras.utils.generic_utils import get_custom_objects
-
-import tensorflow.keras.backend as K
+from keras.layers import Conv2D, BatchNormalization, Activation, Add, AveragePooling2D, Multiply, UpSampling2D
 import tensorflow as tf
 
 
@@ -55,7 +45,7 @@ def build_model_binary(base_model, dropout_rate, n_class, sigmoid=False, mode=No
     predictions = Activation('sigmoid')(predictions) if sigmoid else predictions
     
     # final model
-    model = Model(inputs=base_model.input, outputs=[predictions, *features] if return_feats else predictions)
+    model = tf.keras.models.Model(inputs=base_model.input, outputs=[predictions, *features] if return_feats else predictions)
     return model
 
 
@@ -90,5 +80,5 @@ def build_model_multi(base_model, dropout_rate, n_class):
     predictions = UpSampling2D(size=(8, 8),data_format='channels_last',interpolation="bilinear")(m2)
     
     # final model
-    model = Model(inputs=base_model.input, outputs=predictions)
+    model = tf.keras.models.Model(inputs=base_model.input, outputs=predictions)
     return model

@@ -4,7 +4,7 @@ SEED: 0
 VERBOSE: False
 
 # model name
-NAME: 'ERMKD'
+NAME: 'WCTAKD'
 SAVE_BEST: True
 
 HP_SEARCH: False
@@ -20,20 +20,22 @@ METHOD: 'None'
 PADAIN:
     P: 0.001
     EPS: 1e-5
-UNISTYLE: True
+UNISTYLE: False
 WHITEN_LAYERS: []
 
 # dataset
 TARGET: 'pear'
 SOURCE: ['tree_2','chard','lettuce','vineyard']
 SUBSAMPLE: True
-
-STYLE_AUG: True
+NORM: 'tf' # 'tf' or 'torch'
+STYLE_AUG: False
 RND_FLIP: 0.5
 RND_CROP: 0.5
 RND_GREY: 0.1
 RND_JITTER: 1.0
 RND_JITTER_RNG: 0.4
+ZCA: False
+WCTA: True
 
 # paths
 DATA_PATH: '../AgriSeg_Dataset/'
@@ -56,6 +58,7 @@ AUX_LOSS: False
 KD:
     ALPHA: 0.01
     T: 2
+    ENSEMBLE: 'mean'
  
 CL:
     TEMP: 0.5

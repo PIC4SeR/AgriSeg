@@ -94,9 +94,11 @@ class Distiller(Trainer):
                                             classes=self.config['N_CLASSES'],
                                             pooling='avg',
                                             dropout_rate=False,
+                                            include_preprocessing=self.config['NORM']=='tf',
                                             mode=self.config['METHOD'], p=self.config['PADAIN']['P'],
                                             eps=float(self.config['PADAIN']['EPS']),
                                             whiten_layers=whiten_layers,
+                                            wcta=self.config['WCTA'],
                                             backend=tf.keras.backend, layers=tf.keras.layers, models=tf.keras.models, 
                                             utils=tf.keras.utils)
 
@@ -122,11 +124,14 @@ class Distiller(Trainer):
                                         classes=self.config['N_CLASSES'],
                                         pooling='avg',
                                         dropout_rate=False,
+                                        include_preprocessing=self.config['NORM']=='tf',
                                         mode=self.config['METHOD'], p=self.config['PADAIN']['P'],
                                         eps=float(self.config['PADAIN']['EPS']),
                                         whiten_layers=whiten_layers,
+                                        wcta=self.config['WCTA'],
                                         backend=tf.keras.backend, layers=tf.keras.layers, models=tf.keras.models, 
-                                        utils=tf.keras.utils)
+                                        utils=tf.keras.utils
+                                        )
 
             if self.config['CITYSCAPES']:
                 pre_trained_model = build_model_multi(backbone, False, 20)
@@ -163,8 +168,9 @@ class Distiller(Trainer):
         
         model_input = tf.keras.Input(shape=(self.config['IMG_SIZE'], self.config['IMG_SIZE'], 3))
         model_outputs = [model(model_input) for model in models]
-        ensemble_output = tf.keras.layers.Average()(model_outputs)
-        self.teacher = tf.keras.Model(inputs=model_input, outputs=ensemble_output)
+        # ensemble_output = tf.keras.layers.Average()(model_outputs)
+        # self.teacher = tf.keras.Model(inputs=model_input, outputs=ensemble_output)
+        self.teacher = tf.keras.Model(inputs=model_input, outputs=model_outputs)
         
         del models
         gc.collect()
@@ -188,6 +194,15 @@ class Distiller(Trainer):
 
             elif self.config['METHOD'] in ['KD']: 
                 pred_t = self.teacher(x, training=False)  
+                if self.config['KD']['ENSEMBLE'] == 'mean':
+                    pred_t = tf.reduce_mean(pred_t, axis=0)
+                elif self.config['KD']['ENSEMBLE'] == 'w_mean':
+                    print(tf.reduce_min(pred_t), tf.reduce_max(pred_t), tf.reduce_mean(pred_t))
+                    alpha = tf.exp(pred_t) / tf.reduce_sum(tf.exp(pred_t), axis=0)
+                    pred_t = tf.reduce_sum(pred_t * alpha, axis=0)
+                    print(tf.reduce_min(alpha), tf.reduce_max(alpha), tf.reduce_mean(alpha))
+                    print(tf.reduce_min(pred_t), tf.reduce_max(pred_t), tf.reduce_mean(pred_t))
+
                 pred_t = tf.reshape(pred_t,(self.config['BATCH_SIZE'], -1))
                 pred = tf.reshape(pred,(self.config['BATCH_SIZE'], -1))
                 

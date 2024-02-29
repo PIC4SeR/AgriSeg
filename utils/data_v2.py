@@ -3,6 +3,7 @@ import glob
 import math
 import tensorflow as tf
 import numpy as np
+import random
 
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
@@ -123,6 +124,8 @@ def random_resize_crop(x, y, min_p=0.8, input_size=224, seed=None):
     """
     Random crop between min_p% and 100%.
     """
+    height = tf.cast(tf.random.uniform(shape=[], minval=min_p, maxval=1., dtype=tf.float32, seed=seed) * x.shape[0], tf.int32)
+    width = tf.cast(tf.random.uniform(shape=[], minval=min_p, maxval=1., dtype=tf.float32, seed=seed) * x.shape[1], tf.int32)
 
     x = random.randint(0, img.shape[1] - width)
     y = random.randint(0, img.shape[0] - height)
@@ -159,7 +162,8 @@ def load_subdataset(root, config):
     if config['SUBSAMPLE'] and ('zucchini' in str(root)):
         img_ds = img_ds.take(math.ceil(0.25*len(img_ds)))
         
-    img_ds = img_ds.map(lambda x: tf.keras.applications.imagenet_utils.preprocess_input(x, mode='torch'))
+    if config['NORM'] == 'torch':
+        img_ds = img_ds.map(lambda x: tf.keras.applications.imagenet_utils.preprocess_input(x, mode='torch'))
 
     mask_ds = tf.keras.preprocessing.image_dataset_from_directory(
         directory=root.joinpath('masks'),

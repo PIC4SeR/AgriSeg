@@ -129,6 +129,16 @@ def random_resize_crop(x, y, min_p=0.8, input_size=224, seed=None):
     res_stacked_image = tf.image.resize(image_crops, [input_size,input_size])
     return res_stacked_image[...,:-1], tf.math.round(res_stacked_image[...,-1])
 
+def zca_whitening(x, y, epsilon=1e-5):
+    """
+    Apply ZCA whitening to the input data.
+    """
+    x = x - tf.reduce_mean(x, axis=0)
+    cov_matrix = tf.matmul(x, x, transpose_a=True) / x.shape[0]
+    s, u, v = tf.linalg.svd(cov_matrix)
+    s_inv = 1. / tf.sqrt(s + epsilon)
+    whitening_matrix = tf.matmul(tf.matmul(u, tf.linalg.diag(s_inv)), u, transpose_b=True)
+    return tf.matmul(x, whitening_matrix), y
     
 # LOAD DATASET
     
@@ -150,8 +160,9 @@ def load_subdataset(root, config):
     
     if config['SUBSAMPLE'] and ('zucchini' in str(root)):
         img_ds = img_ds.take(math.ceil(0.25*len(img_ds)))
-        
-    img_ds = img_ds.map(lambda x: tf.keras.applications.imagenet_utils.preprocess_input(x, mode='torch'))
+    
+    if config['NORM'] == 'torch':
+        img_ds = img_ds.map(lambda x: tf.keras.applications.imagenet_utils.preprocess_input(x, mode='torch'))
 
     mask_ds = tf.keras.preprocessing.image_dataset_from_directory(
         directory=root.joinpath('masks'),

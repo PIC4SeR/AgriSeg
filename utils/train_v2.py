@@ -30,7 +30,7 @@ from utils.data import random_resize_crop, random_jitter, random_flip, data_aug,
 from utils.training_tools import mIoU, loss_IoU, DiceBCELoss, ContrastiveLoss, binary_weighted_cross_entropy
 from utils.models import build_model_multi, build_model_binary
 from utils.cityscapes_utils import CityscapesDataset
-from utils.mobilenet_v3 import MobileNetV3Large 
+from utils.mobilenet_v3_2 import MobileNetV3Large 
 from utils.lovasz_loss import lovasz_hinge
 from utils.instance_norm import CovMatrix_ISW, instance_whitening_loss
 from utils.xded import pixelwise_XDEDLoss
@@ -184,16 +184,18 @@ class Trainer:
                                     classes=self.config['N_CLASSES'],
                                     pooling='avg',
                                     dropout_rate=False,
+                                    include_preprocessing=self.config['NORM']=='tf',
                                     mode=self.config['METHOD'], 
                                     p=self.config['PADAIN']['P'],
                                     eps=float(self.config['PADAIN']['EPS']),
                                     whiten_layers=whiten_layers,
+                                    wcta=self.config['WCTA'],
                                     backend=tf.keras.backend, layers=tf.keras.layers, models=tf.keras.models, 
                                     utils=tf.keras.utils)
 
         if self.config['CITYSCAPES']:
             pre_trained_model = build_model_multi(backbone, False, 20)
-            pre_trained_model.load_weights(model_dir.joinpath('lr_aspp_pretrain_cityscapes.h5'))
+            pre_trained_model.load_weights(self.model_dir.joinpath('lr_aspp_pretrain_cityscapes.h5'))
         else:
             pre_trained_model = backbone
             
@@ -359,7 +361,7 @@ class Trainer:
         out += f'Val {btv:.4f} Best Test {btm:.4f} ({bte})'
         self.logger.save_log(out)
         
-        return best_test_metr if self.config['SAVE_BEST'] else metr
+        return best_test_metr if self.config['SAVE_BEST'] else test_metr
         
         
         
