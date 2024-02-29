@@ -1,7 +1,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-import absl.logging
-absl.logging.set_verbosity(absl.logging.ERROR)
+# import absl.logging
+# absl.logging.set_verbosity(absl.logging.ERROR)
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 from tqdm.notebook import tqdm as tqdm
 
 import tensorflow as tf
-import tensorflow_addons as tfa
+# import tensorflow_addons as tfa
 #import tensorflow_probability as tfp
 from tensorboard.plugins.hparams import api as hp
 import optuna 
@@ -30,7 +30,7 @@ from utils.data import random_resize_crop, random_jitter, random_flip, data_aug,
 from utils.training_tools import mIoU, loss_IoU, DiceBCELoss, ContrastiveLoss, binary_weighted_cross_entropy
 from utils.models import build_model_multi, build_model_binary
 from utils.cityscapes_utils import CityscapesDataset
-from utils.mobilenet_v3_2 import MobileNetV3Large 
+from utils.mobilenet_v3 import MobileNetV3Large 
 from utils.lovasz_loss import lovasz_hinge
 from utils.instance_norm import CovMatrix_ISW, instance_whitening_loss
 from utils.xded import pixelwise_XDEDLoss
@@ -112,8 +112,8 @@ class Trainer:
             source_dataset = sorted([self.data_dir.joinpath(d) 
                                      for d in self.config['SOURCE'] if d != self.config['TARGET']])
         
-        with redirect_stdout(None):
-            ds_source, ds_target = load_multi_dataset(source_dataset, target_dataset, self.config)
+        # with redirect_stdout(None):
+        ds_source, ds_target = load_multi_dataset(source_dataset, target_dataset, self.config)
 
         self.ds_train, self.ds_val, self.ds_test = split_data(ds_source, ds_target, self.config)
         
@@ -242,7 +242,7 @@ class Trainer:
                            end_learning_rate=float(self.config['ADAMW']['LR_END']), 
                            power=self.config['ADAMW']['DECAY'])
             
-            self.optim = tfa.optimizers.AdamW(learning_rate=lr_sched, weight_decay=float(self.config['ADAMW']['WD']))
+            self.optim = tf.optimizers.AdamW(learning_rate=lr_sched, weight_decay=float(self.config['ADAMW']['WD']))
             
         elif self.config['OPTIMIZER'] == 'sgd':
             lr_sched = tf.keras.optimizers.schedules.ExponentialDecay(

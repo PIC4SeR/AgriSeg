@@ -1,16 +1,16 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-import absl.logging
-absl.logging.set_verbosity(absl.logging.ERROR)
+# import absl.logging
+# absl.logging.set_verbosity(absl.logging.ERROR)
 import warnings
 warnings.filterwarnings('ignore')
 
-import argparse
 import time
 
 import tensorflow as tf
+# tf.compat.v1.disable_eager_execution()
 
-from utils.tools import read_yaml, get_args, Logger, seed_everything
+from utils.tools import read_yaml, get_args, Logger
 from utils.train import Trainer
 from utils.distiller import Distiller
 from utils.hp_search import HPSearcher
@@ -34,7 +34,7 @@ def main():
     
     #select the working GPU
     gpus = tf.config.experimental.list_physical_devices('GPU')
-    tf.config.experimental.set_visible_devices(gpus, 'GPU')
+    tf.config.experimental.set_visible_devices(gpus[args.cuda], 'GPU')
     devices = []
     for g in config['GPU']:
         tf.config.experimental.set_memory_growth(gpus[g], True)

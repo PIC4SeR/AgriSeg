@@ -1,6 +1,6 @@
 import tensorflow as tf
 import kmeans1d
-from tensorflow_addons.layers import InstanceNormalization
+from keras.layers import GroupNormalization as InstanceNormalization
 
 def unistyle(x, whiten_cov=False):
     x_mu = tf.math.reduce_mean(x, axis=[2,3], keepdims=True)
@@ -17,7 +17,7 @@ def unistyle(x, whiten_cov=False):
 def _instance_norm_block(x, mode=None, p=0.01, eps=1e-5, training=None):
     print(mode)
     if mode in ['ISW', 'IN']:
-        return InstanceNormalization()(x)
+        return InstanceNormalization(groups=-1)(x)
     elif mode == 'PADAIN':
         return PAdaIN(p=p, eps=eps)(x)
     elif mode in ['KD', 'XDED']:
@@ -32,7 +32,7 @@ def _instance_norm_block(x, mode=None, p=0.01, eps=1e-5, training=None):
     
 def INormBlock(mode=None, p=0.01, eps=1e-5):
     if mode == 'IN':
-        return InstanceNormalization()
+        return InstanceNormalization(groups=-1)
     elif mode == 'PADAIN':
         return PAdaIN(p=p, eps=eps)
     elif mode == 'WCTA':

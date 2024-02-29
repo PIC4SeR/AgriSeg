@@ -1,7 +1,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-import absl.logging
-absl.logging.set_verbosity(absl.logging.ERROR)
+# import absl.logging
+# absl.logging.set_verbosity(absl.logging.ERROR)
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 from tqdm.notebook import tqdm as tqdm
 
 import tensorflow as tf
-import tensorflow_addons as tfa
+# import tensorflow_addons as tfa
 from tensorboard.plugins.hparams import api as hp
 import optuna 
 

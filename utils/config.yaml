@@ -4,7 +4,7 @@ SEED: 0
 VERBOSE: False
 
 # model name
-NAME: 'KD_Norm'
+NAME: 'Teacher'
 SAVE_BEST: True
 
 HP_SEARCH: False
@@ -15,7 +15,7 @@ N_TRIALS: 12
 CITYSCAPES: False
 
 # DG methodology
-DG: True
+DG: False
 METHOD: 'None'
 PADAIN:
     P: 0.001
