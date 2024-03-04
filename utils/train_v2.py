@@ -13,6 +13,8 @@ from pathlib import Path
 from contextlib import redirect_stdout
 import time, datetime
 import gc
+import io
+trap = io.StringIO()
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -51,7 +53,7 @@ class Trainer:
         self.model_dir = Path(config['MODEL_PATH'])
         self.log_dir = Path(config['LOG_PATH'])
         self.data_dir = Path(config['DATA_PATH'])
-        tb_name = f"{self.config['TARGET']}_{self.config['ID']}_{datetime.datetime.now().strftime('%m_%d_%H_%M')}"
+        tb_name = f"{self.model_name}_{self.config['ID']}_{datetime.datetime.now().strftime('%m_%d_%H_%M')}"
         self.tb_dir = self.log_dir.joinpath("tb").joinpath(tb_name)
 
         self.model_file = self.model_dir.joinpath(f"{self.model_name}_{self.config['ID']}.h5")
@@ -112,8 +114,8 @@ class Trainer:
             source_dataset = sorted([self.data_dir.joinpath(d) 
                                      for d in self.config['SOURCE'] if d != self.config['TARGET']])
         
-        # with redirect_stdout(None):
-        ds_source, ds_target = load_multi_dataset(source_dataset, target_dataset, self.config)
+        with redirect_stdout(trap):
+            ds_source, ds_target = load_multi_dataset(source_dataset, target_dataset, self.config)
 
         self.ds_train, self.ds_val, self.ds_test = split_data(ds_source, ds_target, self.config)
         
@@ -189,7 +191,7 @@ class Trainer:
                                     p=self.config['PADAIN']['P'],
                                     eps=float(self.config['PADAIN']['EPS']),
                                     whiten_layers=whiten_layers,
-                                    wcta=self.config['WCTA'],
+                                    wcta=self.config['WCTA'], 
                                     backend=tf.keras.backend, layers=tf.keras.layers, models=tf.keras.models, 
                                     utils=tf.keras.utils)
 
@@ -199,6 +201,9 @@ class Trainer:
         else:
             pre_trained_model = backbone
             
+        if self.config['FREEZE_BACKBONE']:
+            pre_trained_model.trainable = False
+
         # binary segmentation model
         self.model = build_model_binary(base_model=pre_trained_model, 
                                         dropout_rate=False, 
@@ -206,8 +211,8 @@ class Trainer:
                                         sigmoid=self.config['LOSS']=='iou', 
                                         mode=self.config['METHOD'],
                                         p=self.config['PADAIN']['P'], 
+                                        fwcta=self.config['FWCTA'],
                                         eps=float(self.config['PADAIN']['EPS']))
-        self.model.trainable = True
         
         del pre_trained_model
         del backbone

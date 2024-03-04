@@ -10,6 +10,10 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 # absl.logging.set_verbosity(absl.logging.ERROR)
 import warnings
 warnings.filterwarnings('ignore')
+import io
+from contextlib import redirect_stdout
+
+
 
 MEAN_RGB = [0.485, 0.456, 0.406]
 STDDEV_RGB = [0.229, 0.224, 0.225]

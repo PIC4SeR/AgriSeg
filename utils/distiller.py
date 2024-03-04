@@ -5,32 +5,16 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import warnings
 warnings.filterwarnings('ignore')
 
-import glob
-import math
-import random
-import argparse
 from pathlib import Path
-from contextlib import redirect_stdout
-import time, datetime
+import datetime
 import gc
-
-import numpy as np
-import matplotlib.pyplot as plt
 from tqdm.notebook import tqdm as tqdm
 
 import tensorflow as tf
-# import tensorflow_addons as tfa
-from tensorboard.plugins.hparams import api as hp
-import optuna 
 
-from utils.data import load_multi_dataset, split_data
-from utils.tools import read_yaml, save_log, get_args, ValCallback, TBCallback
-from utils.data import random_resize_crop, random_jitter, random_flip, data_aug, normalize_imagenet, random_grayscale
-from utils.training_tools import mIoU, loss_IoU, DiceBCELoss, ContrastiveLoss
+from utils.tools import save_log
 from utils.models import build_model_multi, build_model_binary
-from utils.cityscapes_utils import CityscapesDataset
 from utils.mobilenet_v3 import MobileNetV3Large 
-from utils.lovasz_loss import lovasz_hinge
 
 from utils.train import Trainer
 
@@ -98,7 +82,7 @@ class Distiller(Trainer):
                                             mode=self.config['METHOD'], p=self.config['PADAIN']['P'],
                                             eps=float(self.config['PADAIN']['EPS']),
                                             whiten_layers=whiten_layers,
-                                            wcta=self.config['WCTA'],
+                                            wcta=self.config['WCTA'] if feats or 'wcta' in self.config['TEACHERS'] else False,  
                                             backend=tf.keras.backend, layers=tf.keras.layers, models=tf.keras.models, 
                                             utils=tf.keras.utils)
 
@@ -112,6 +96,7 @@ class Distiller(Trainer):
                 model = build_model_binary(pre_trained_model, False, self.config['N_CLASSES'], 
                                            sigmoid=self.config['LOSS']=='iou', mode=self.config['METHOD'],
                                            p=self.config['PADAIN']['P'], eps=float(self.config['PADAIN']['EPS']),
+                                           fwcta=self.config['FWCTA'] if feats or 'fwcta' in self.config['TEACHERS'] else False,
                                            return_feats=feats)
                 
         else:
@@ -128,7 +113,7 @@ class Distiller(Trainer):
                                         mode=self.config['METHOD'], p=self.config['PADAIN']['P'],
                                         eps=float(self.config['PADAIN']['EPS']),
                                         whiten_layers=whiten_layers,
-                                        wcta=self.config['WCTA'],
+                                        wcta=self.config['WCTA'] if feats or 'wcta' in self.config['TEACHERS'] else False, 
                                         backend=tf.keras.backend, layers=tf.keras.layers, models=tf.keras.models, 
                                         utils=tf.keras.utils
                                         )
@@ -138,16 +123,19 @@ class Distiller(Trainer):
                 pre_trained_model.load_weights(self.model_dir.joinpath('lr_aspp_pretrain_cityscapes.h5'))
             else:
                 pre_trained_model = backbone
+                
+            if self.config['FREEZE_BACKBONE']:
+                pre_trained_model.trainable = False
 
             # binary segmentation model
             model = build_model_binary(pre_trained_model, False, self.config['N_CLASSES'], 
                                        sigmoid=self.config['LOSS']=='iou', mode=self.config['METHOD'],
                                        p=self.config['PADAIN']['P'], eps=float(self.config['PADAIN']['EPS']),
+                                       fwcta=self.config['FWCTA'] if feats or 'fwcta' in self.config['TEACHERS'] else False,
                                        return_feats=feats)
             
             if weights:
                 model.load_weights(self.model_dir.joinpath(weights))
-            model.trainable = True
             
             del pre_trained_model
             del backbone
@@ -159,9 +147,9 @@ class Distiller(Trainer):
     def get_teacher(self):
         domains = [w for w in self.config['SOURCE'] if w != self.config['TARGET']]
         if self.config['ERM_TEACHERS']:
-            weights = [f'teachers/erm/teacher_aug_{self.config["TARGET"]}.h5']
+            weights = [f'teachers/erm/teacher_{self.config["TARGET"]}.h5']
         else:
-            weights = [f'teachers/teacher_aug_{w}.h5' for w in domains]
+            weights = [f'teachers/{self.config["TEACHERS"]}/teacher_{w}.h5' for w in domains]
         print(f'Loaded Teachers: {domains}')
         
         models = [self.get_single_model(w, feats=False) for w in weights]
@@ -203,14 +191,29 @@ class Distiller(Trainer):
                     print(tf.reduce_min(alpha), tf.reduce_max(alpha), tf.reduce_mean(alpha))
                     print(tf.reduce_min(pred_t), tf.reduce_max(pred_t), tf.reduce_mean(pred_t))
 
-                pred_t = tf.reshape(pred_t,(self.config['BATCH_SIZE'], -1))
-                pred = tf.reshape(pred,(self.config['BATCH_SIZE'], -1))
+                if self.config['KD']['LOSS'] == 'old': # old kld version
+                    pred_t = tf.reshape(pred_t,(self.config['BATCH_SIZE'], -1))
+                    pred = tf.reshape(pred,(self.config['BATCH_SIZE'], -1))
+                    aux_loss = self.kd_loss_fn(tf.nn.softmax(pred_t / self.config['KD']['T'], axis=-1),
+                        tf.nn.softmax(pred / self.config['KD']['T'], axis=-1)) * self.config['KD']['T'] ** 2
+                elif self.config['KD']['LOSS'] == 'kld': # kld loss
+                    # create additional class channel by difference
+                    pred_t = tf.math.sigmoid(pred_t / self.config['KD']['T'])
+                    pred_t = tf.concat([tf.ones_like(pred_t) - pred_t, pred_t], axis=-1)
+                    pred = tf.math.sigmoid(pred / self.config['KD']['T'])
+                    pred = tf.concat([tf.ones_like(pred) - pred, pred], axis=-1)
+                    aux_loss = self.kd_loss_fn(pred_t, pred) * self.config['KD']['T'] ** 2
+                # elif self.config['KD']['LOSS'] == 'logsum':
+                #     feature-based distillation
+                # elif self.config['KD']['LOSS'] == 'mse':
+                #     feature-based distillation
+                # elif self.config['KD']['LOSS'] == 'mae':
+                #     feature-based distillation
+
                 
-                aux_loss = self.kd_loss_fn(tf.nn.softmax(pred_t / self.config['KD']['T'], axis=-1),
-                                           tf.nn.softmax(pred / self.config['KD']['T'], axis=-1)) * self.config['KD']['T'] ** 2
             loss = out_loss + self.config['KD']['ALPHA'] * tf.reduce_mean(aux_loss)
             
         grads = tape.gradient(loss, self.model.trainable_variables)
         self.optim.apply_gradients(zip(grads, self.model.trainable_variables))
 
-        return out_loss, self.config['KD']['ALPHA'] * aux_loss, metr, None
+        return out_loss, self.config['KD']['ALPHA'] * tf.reduce_mean(aux_loss), metr, None

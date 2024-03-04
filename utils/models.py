@@ -1,9 +1,9 @@
 from keras.layers import Conv2D, BatchNormalization, Activation, Add, AveragePooling2D, Multiply, UpSampling2D
 import tensorflow as tf
+from utils.instance_norm import _instance_norm_block
 
 
-
-def build_model_binary(base_model, dropout_rate, n_class, sigmoid=False, mode=None, p=None, eps=1e-5, return_feats=True): 
+def build_model_binary(base_model, dropout_rate, n_class, sigmoid=False, mode=None, p=None, eps=1e-5, return_feats=True, fwcta=False): 
 
     #1/8 resolution output
     out_1_8 = base_model.get_layer('expanded_conv_6/expand/act_1').output
@@ -21,6 +21,11 @@ def build_model_binary(base_model, dropout_rate, n_class, sigmoid=False, mode=No
     else:
         features = [out_1_16]
     
+
+    if mode == 'KD' and fwcta:
+        out_1_8 = _instance_norm_block(out_1_8, mode='KD_WCTA')
+        out_1_16 = _instance_norm_block(out_1_16, mode='KD_WCTA')
+
     # branch1
     x1 = Conv2D(128, (1, 1))(out_1_16)
     x1 = BatchNormalization()(x1)
