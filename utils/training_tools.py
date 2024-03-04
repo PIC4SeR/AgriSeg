@@ -1,7 +1,6 @@
 import tensorflow as tf
-import tensorflow.keras.backend as K
+import keras.backend as K
 import numpy as np
-from typing import Callable
 
 def loss_IoU(y_true, y_pred): 
     if len(y_pred.shape) != len(y_true.shape):
@@ -16,8 +15,9 @@ def loss_IoU(y_true, y_pred):
     iou= tf.math.divide(inter,union)
     return 1-iou
 
+
 #metric
-def mIoU(y_true, y_pred):
+def mIoU_old(y_true, y_pred):
     if len(y_pred.shape) != len(y_true.shape):
         #y_true = y_true[...,None]
         y_pred = y_pred[...,0]
@@ -36,6 +36,28 @@ def mIoU(y_true, y_pred):
     
     return tf.math.divide(inter,union)
 
+
+#metric
+def mIoU(y_true, y_pred):
+    if len(y_pred.shape) != len(y_true.shape):
+        #y_true = y_true[...,None]
+        y_pred = y_pred[...,0]
+
+    y_pred = tf.math.sigmoid(y_pred)
+    threshold = tf.constant([0.5])
+    y_pred_threshold=tf.cast(tf.math.greater(y_pred, threshold),tf.int32)
+
+    y_true=tf.cast(y_true,tf.int32)
+    
+    intersection_tensor=tf.math.multiply(y_true,y_pred_threshold)
+    inter=tf.reduce_sum(intersection_tensor)
+    
+    #union= a+b-intersection
+    union=tf.reduce_sum(tf.math.subtract(tf.math.add(y_true,y_pred_threshold),intersection_tensor))
+    
+    return tf.math.divide(inter,union)
+
+
 def weighted_cross_entropy_loss(y_true_labels, y_pred_logits):
     
     class_weights = [2.602, 6.707, 3.522, 9.877, 9.685, 9.398, 10.288, 9.969, 
@@ -48,39 +70,6 @@ def weighted_cross_entropy_loss(y_true_labels, y_pred_logits):
     losses = tf.multiply(losses, weights)
 
     return tf.reduce_mean(losses)
-
-def binary_weighted_cross_entropy(beta: float = 0.5, from_logits: bool = False) -> Callable[[tf.Tensor, tf.Tensor], tf.Tensor]:
-    """
-    Weighted cross entropy. All positive examples get weighted by the coefficient beta:
-        WCE(p, p̂) = −[β*p*log(p̂) + (1−p)*log(1−p̂)]
-    To decrease the number of false negatives, set β>1. To decrease the number of false positives, set β<1.
-    If last layer of network is a sigmoid function, y_pred needs to be reversed into logits before computing the
-    weighted cross entropy. To do this, we're using the same method as implemented in Keras binary_crossentropy:
-    https://github.com/tensorflow/tensorflow/blob/r1.10/tensorflow/python/keras/backend.py#L3525
-    Used as loss function for binary image segmentation with one-hot encoded masks.
-    :param beta: Weight coefficient (float)
-    :param is_logits: If y_pred are logits (bool, default=False)
-    :return: Weighted cross entropy loss function (Callable[[tf.Tensor, tf.Tensor], tf.Tensor])
-    """
-    def loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
-        """
-        Computes the weighted cross entropy.
-        :param y_true: True masks (tf.Tensor, shape=(<BATCH_SIZE>, <IMAGE_HEIGHT>, <IMAGE_WIDTH>, 1))
-        :param y_pred: Predicted masks (tf.Tensor, shape=(<BATCH_SIZE>, <IMAGE_HEIGHT>, <IMAGE_WIDTH>, 1))
-        :return: Weighted cross entropy (tf.Tensor, shape=(<BATCH_SIZE>,))
-        """
-        if not from_logits:
-            y_pred = convert_to_logits(y_pred)
-
-        wce_loss = tf.nn.weighted_cross_entropy_with_logits(labels=y_true, logits=y_pred[...,0,0], pos_weight=beta)
-
-        # Average over each data point/image in batch
-        axis_to_reduce = range(1, K.ndim(wce_loss))
-        wce_loss = K.mean(wce_loss, axis=axis_to_reduce)
-
-        return wce_loss
-
-    return loss
 
 #Keras
 def DiceBCELoss(targets, inputs, smooth=1e-6):    

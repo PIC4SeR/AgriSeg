@@ -246,7 +246,7 @@ def MobileNetV3(stack_fn,
     
     if mode in ['PADAIN']:
         x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
-            
+
     x = layers.BatchNormalization(axis=channel_axis,
                                   epsilon=1e-3,
                                   momentum=0.999,

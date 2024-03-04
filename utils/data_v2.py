@@ -133,12 +133,12 @@ def random_resize_crop(x, y, min_p=0.8, input_size=224, seed=None):
     mask = mask[y:y+height, x:x+width]
     return img, mask
     
-    stacked_image = tf.concat([x, y], axis=-1)
-    perc = tf.random.uniform(shape=[], minval=min_p, maxval=1., dtype=tf.float32, seed=seed)
-    perc = tf.math.floor(perc * img.shape[1])
-    image_crops = tf.image.random_crop(stacked_image, [perc,perc,4], seed=seed)
-    res_stacked_image = tf.image.resize(image_crops, [input_size,input_size])
-    return res_stacked_image[...,:-1], tf.math.round(res_stacked_image[...,-1])
+    # stacked_image = tf.concat([x, y], axis=-1)
+    # perc = tf.random.uniform(shape=[], minval=min_p, maxval=1., dtype=tf.float32, seed=seed)
+    # perc = tf.math.floor(perc * img.shape[1])
+    # image_crops = tf.image.random_crop(stacked_image, [perc,perc,4], seed=seed)
+    # res_stacked_image = tf.image.resize(image_crops, [input_size,input_size])
+    # return res_stacked_image[...,:-1], tf.math.round(res_stacked_image[...,-1])
 
     
 # LOAD DATASET
@@ -271,6 +271,6 @@ def split_data(ds_source, ds_target, config):
         
         ds_test = tf.data.Dataset.from_tensor_slices(ds_test)
         ds_test = ds_test.interleave(lambda x: x, cycle_length=1, num_parallel_calls=tf.data.AUTOTUNE)
-        ds_test = ds_val.apply(tf.data.experimental.assert_cardinality(len_tes))
+        ds_test = ds_test.apply(tf.data.experimental.assert_cardinality(len_tes))
 
     return ds_train, ds_val, ds_test

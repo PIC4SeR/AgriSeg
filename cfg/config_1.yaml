@@ -4,36 +4,40 @@ SEED: 0
 VERBOSE: False
 
 # model name
-NAME: 'WLKD2'
+NAME: null
 SAVE_BEST: True
 
 HP_SEARCH: False
-HP_SEARCH_NAME: 'kd_aug_rome'
+HP_SEARCH_NAME: 'hps'
 HP_SEARCH_DIR: 'trials'
-N_TRIALS: 12
+N_TRIALS: 36
 
 CITYSCAPES: False
 
 # DG methodology
-DG: True
+DG: False
 METHOD: 'None'
 PADAIN:
     P: 0.001
     EPS: 1e-5
-UNISTYLE: True
-WHITEN_LAYERS: [0,1]
+UNISTYLE: False
+WHITEN_LAYERS: []
+TEACHERS: null
 
 # dataset
-TARGET: 'pear'
+TARGET: null
 SOURCE: ['tree_2','chard','lettuce','vineyard']
 SUBSAMPLE: True
-
-STYLE_AUG: True
+NORM: 'tf' # 'tf' or 'torch'
+STYLE_AUG: False
 RND_FLIP: 0.5
 RND_CROP: 0.5
 RND_GREY: 0.1
 RND_JITTER: 1.0
 RND_JITTER_RNG: 0.4
+ZCA: False
+WCTA: False
+FWCTA: True
 
 # paths
 DATA_PATH: '../AgriSeg_Dataset/'
@@ -49,13 +53,16 @@ BATCH_SIZE: 64
 # training
 N_CLASSES: 1 # 1 for binary
 N_EPOCHS: 50
-
+FREEZE_BACKBONE: False
 LOSS: 'bce'
+METRIC: 'iou'
 
 AUX_LOSS: False
 KD:
     ALPHA: 0.01
     T: 2
+    ENSEMBLE: 'mean'
+    LOSS: 'old' # 'kld' or 'mse' or 'mae' or 'logsum' or 'old'
  
 CL:
     TEMP: 0.5
@@ -70,7 +77,7 @@ SGD:
 ADAM:
     LR: 3e-4
 ADAMW:
-    LR: 5e-3
+    LR: 1e-4
     LR_END: 5e-6
     DECAY: 1
     WD: 1e-5

@@ -155,7 +155,7 @@ def save_log(text, file):
         print(text)
         with open(file, 'a') as f:
             f.write(str(text)+'\n')
-            
+
             
 def get_args():
     parser = argparse.ArgumentParser(description="Script to launch training",
@@ -167,15 +167,38 @@ def get_args():
     parser.add_argument("--cuda", default=0, type=int, help="Select cuda device")
     # Dataset
     parser.add_argument("--target", default=None, help="Target domain")
-    
     # DG Methodology
     parser.add_argument("--method", default=None, help="DG methodology")
     parser.add_argument("--alpha", type=float, default=None, help="Auxiliary loss weight")
     parser.add_argument("--temperature", type=float, default=None, help="Auxiliary loss temperature")
     parser.add_argument("--whiten_layers", type=list, default=None, help="Layers to whiten")
     parser.add_argument("--erm_teacher", default=False, help="ERM teachers", action="store_true")
-    
+    parser.add_argument("--weights", default=None, help="Weights to be tested")
+    parser.add_argument("--test", default=False, help="Test only", action="store_true")
     return parser.parse_args()
+
+
+def get_cfg(args):
+    config = read_yaml(args.config)
+    config['TARGET'] = args.target if args.target is not None else config['TARGET']
+    config['NAME'] = args.name if args.name is not None else config['NAME']
+    config['METHOD'] = args.method if args.method is not None else config['METHOD']
+    config['KD']['ALPHA'] = args.alpha if args.alpha is not None else config['KD']['ALPHA']
+    config['KD']['T'] = args.temperature if args.temperature is not None else config['KD']['T']
+    config['WHITEN_LAYERS'] = args.whiten_layers if args.whiten_layers is not None else config['WHITEN_LAYERS']
+    config['ID'] = args.id if args.id is not None else 0
+    config['ERM_TEACHERS'] = True if args.erm_teacher else False
+    config['WEIGHTS'] = args.weights if args.weights is not None else None
+    config['TEST'] = True if args.test else False
+    config['TEACHERS'] = f"{config['NORM']}_{'style' if config['STYLE_AUG'] else 'geom'}" + \
+                         f"{'_wcta' if config['WCTA'] else ''}" if config['TEACHERS'] is None else config['TEACHERS']
+    return config
+
+def get_args_and_cfg():
+    args = get_args()
+    config = get_cfg(args)
+    return args, config
+    
 
 
 class ValCallback(tf.keras.callbacks.Callback):

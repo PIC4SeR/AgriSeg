@@ -270,6 +270,6 @@ def split_data(ds_source, ds_target, config):
         
         ds_test = tf.data.Dataset.from_tensor_slices(ds_test)
         ds_test = ds_test.interleave(lambda x: x, cycle_length=1, num_parallel_calls=tf.data.AUTOTUNE)
-        ds_test = ds_val.apply(tf.data.experimental.assert_cardinality(len_tes))
+        ds_test = ds_test.apply(tf.data.experimental.assert_cardinality(len_tes))
 
     return ds_train, ds_val, ds_test

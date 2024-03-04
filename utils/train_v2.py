@@ -5,33 +5,23 @@ absl.logging.set_verbosity(absl.logging.ERROR)
 import warnings
 warnings.filterwarnings('ignore')
 
-import glob
-import math
-import random
-import argparse
 from pathlib import Path
 from contextlib import redirect_stdout
 import time, datetime
 import gc
-
-import numpy as np
-import matplotlib.pyplot as plt
 from tqdm.notebook import tqdm as tqdm
 
 import tensorflow as tf
 import tensorflow_addons as tfa
 #import tensorflow_probability as tfp
-from tensorboard.plugins.hparams import api as hp
 import optuna 
 
 from utils.data_v2 import load_multi_dataset, split_data
-from utils.tools import read_yaml, save_log, get_args, ValCallback, TBCallback
-from utils.data import random_resize_crop, random_jitter, random_flip, data_aug, normalize_imagenet, random_grayscale
-from utils.training_tools import mIoU, loss_IoU, DiceBCELoss, ContrastiveLoss, binary_weighted_cross_entropy
+from utils.tools import save_log
+from utils.data import random_resize_crop, random_jitter, random_flip, random_grayscale
+from utils.training_tools import mIoU, loss_IoU, ContrastiveLoss, mIoU_old
 from utils.models import build_model_multi, build_model_binary
-from utils.cityscapes_utils import CityscapesDataset
-from utils.mobilenet_v3_2 import MobileNetV3Large 
-from utils.lovasz_loss import lovasz_hinge
+from utils.mobilenet_v3 import MobileNetV3Large 
 from utils.instance_norm import CovMatrix_ISW, instance_whitening_loss
 from utils.xded import pixelwise_XDEDLoss
 
@@ -199,6 +189,9 @@ class Trainer:
         else:
             pre_trained_model = backbone
             
+        if self.config['FREEZE_BACKBONE']:
+            pre_trained_model.trainable = False
+            
         # binary segmentation model
         self.model = build_model_binary(base_model=pre_trained_model, 
                                         dropout_rate=False, 
@@ -206,8 +199,8 @@ class Trainer:
                                         sigmoid=self.config['LOSS']=='iou', 
                                         mode=self.config['METHOD'],
                                         p=self.config['PADAIN']['P'], 
-                                        eps=float(self.config['PADAIN']['EPS']))
-        self.model.trainable = True
+                                        eps=float(self.config['PADAIN']['EPS']),
+                                        fwcta=self.config['FWCTA'])
         
         del pre_trained_model
         del backbone
@@ -223,7 +216,7 @@ class Trainer:
         else:
             self.get_opt_loss()
             
-        self.metric = mIoU
+        self.metric = mIoU if self.config['METRIC'] == 'iou' else mIoU_old
 
         self.train_loss_mean, self.train_metr_mean = tf.keras.metrics.Mean(), tf.keras.metrics.Mean()
         self.train_aux_mean = tf.keras.metrics.Mean()

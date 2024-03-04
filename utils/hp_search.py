@@ -6,71 +6,83 @@ import optuna
 
 from utils.train import Trainer
 from utils.distiller import Distiller
-
-from tensorflow.keras import backend as K
+from utils.tools import get_cfg
+from keras import backend as K
 import gc
 
 
 class HPSearcher:
       
-    def __init__(self, config, logger=None, strategy=None, trial=None):
-        
+    def __init__(self, args, config, logger=None, strategy=None, trial=None):
+        self.args = args
         self.config = config
         self.logger = logger
         self.strategy = strategy
         self.trial = trial
         
-        self.search_space = {"WHITEN_LAYERS": [(),(0,0),(0,1),(0,1,2)],
-                             "ALPHA": [1, 2, 3]
+        self.search_space = {
+                            "LR": [5e-5, 5e-4],
+                            # "TARGET": ["tree_2", "chard", "lettuce", "vineyard"],
+                            # "FREEZE_BACKBONE": [True, False],
+                            "T": [1, 2, 3],
+                            "ALPHA": [0.001, 0.01, 0.1],
+                            # "WCTA": [True, False],
+                            # "STYLE_AUG": [True, False],
+                            # "FWCTA": [True, False],
                             }
     
     def get_random_hps(self):
         
-#         self.config['CL']['WEIGHT'] = self.trial.suggest_categorical("AUX_WEIGHT", [0.01, 0.1])
-#         self.config['PADAIN']['P'] = self.trial.suggest_categorical("P", [0.001, 0.01])
-#         self.config['CL']['TEMP'] = self.trial.suggest_categorical("TEMP", [0.1, 0.5])
+        # self.config['CL']['WEIGHT'] = self.trial.suggest_categorical("AUX_WEIGHT", [0.01, 0.1])
+        # self.config['PADAIN']['P'] = self.trial.suggest_categorical("P", [0.001, 0.01])
+        # self.config['CL']['TEMP'] = self.trial.suggest_categorical("TEMP", [0.1, 0.5])
 
-        #self.config['KD']['T'] = self.trial.suggest_categorical("T", [0.1, 1, 10])
-        self.config['KD']['ALPHA'] = self.trial.suggest_categorical("ALPHA", [1, 2, 3])
-        self.config['WHITEN_LAYERS'] = self.trial.suggest_categorical("WHITEN_LAYERS", [(),(0,0),(0,1),(0,1,2)])
-        
-        print(f"T={self.config['KD']['T']}, ALPHA={self.config['KD']['ALPHA']}, W={self.config['WHITEN_LAYERS']}")
-        
+        self.config['KD']['T'] = self.trial.suggest_categorical("T", [1, 2, 3])
+        self.config['KD']['ALPHA'] = self.trial.suggest_categorical("ALPHA", [0.001, 0.01, 0.1])
+        # self.config['WCTA'] = self.trial.suggest_categorical("WCTA", [True, False])
+        # self.config['STYLE_AUG'] = self.trial.suggest_categorical("STYLE_AUG", [True, False])
+        # self.config['FWCTA'] = self.trial.suggest_categorical("FWCTA", [True, False])
+        # self.config['WHITEN_LAYERS'] = self.trial.suggest_categorical("WHITEN_LAYERS", [(),(0,0),(0,1),(0,1,2)])
 
+        self.config['ADAMW']['LR'] = self.trial.suggest_categorical("LR", [5e-5, 5e-4])
+        # self.config['TARGET'] = self.trial.suggest_categorical("TARGET", ["tree_2", "chard", "lettuce", "vineyard"])
+        # self.config['FREEZE_BACKBONE'] = self.trial.suggest_categorical("FREEZE_BACKBONE", [True, False])        
         
         if self.config['VERBOSE']:
             self.logger.save_log(self.config[self.config['MODE']])
+
+        print(f"LR={self.config['ADAMW']['LR']}, KD={self.config['KD']['T']}, ALPHA={self.config['KD']['ALPHA']}")
     
     
     def objective(self, trial):
-
         name = 'gridsearch_' + str(trial.datetime_start) + str(trial.number)
         self.trial = trial 
-        
+        self.config = get_cfg(self.args)
         self.get_random_hps()
-
-        if self.config['KD']:
-            distiller = Distiller(config=self.config, logger=self.logger, strategy=self.strategy, trial=self.trial)
-            metr = distiller.train()
-            #distiller.test()        
-
+        target_domains = self.config['TARGET'] if isinstance(self.config['TARGET'], list) else [self.config['TARGET']]
+        metrics = []
+        for domain in target_domains:
+            self.config['TARGET'] = domain
+            if self.config['KD']:
+                distiller = Distiller(config=self.config, logger=self.logger, strategy=self.strategy, trial=self.trial)
+                metr = distiller.train()
+                #distiller.test()        
+                del distiller.model
+                del distiller.teacher
+                del distiller
+            else:
+                trainer = Trainer(config=self.config, logger=self.logger, strategy=self.strategy, trial=self.trial)
+                metr = trainer.train()
+                #trainer.test()
+                del trainer.model
+                del trainer
             
-            del distiller.model
-            del distiller.teacher
-            del distiller
-            
-        else:
-            trainer = Trainer(config=self.config, logger=self.logger, strategy=self.strategy, trial=self.trial)
-            metr = trainer.train()
-            #trainer.test()
-
-            del trainer.model
-            del trainer
-            
-        K.clear_session()
-        gc.collect()
+            metrics.append(metr.numpy())
+            K.clear_session()
+            gc.collect()
         
-        return metr
+        print(f"Metrics: {metrics}, Mean: {sum(metrics) / len(metrics)}")
+        return sum(metrics) / len(metrics)
     
     
     def hp_search(self):
