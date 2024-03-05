@@ -83,7 +83,7 @@ class Distiller(Trainer):
                                             mode=self.config['METHOD'], p=self.config['PADAIN']['P'],
                                             eps=float(self.config['PADAIN']['EPS']),
                                             whiten_layers=whiten_layers,
-                                            wcta=self.config['WCTA'],
+                                            wcta=self.config['WCTA'] if feats or 'wcta' in self.config['TEACHERS'] else False,
                                             backend=tf.keras.backend, layers=tf.keras.layers, models=tf.keras.models, 
                                             utils=tf.keras.utils)
 
@@ -114,7 +114,7 @@ class Distiller(Trainer):
                                         mode=self.config['METHOD'], p=self.config['PADAIN']['P'],
                                         eps=float(self.config['PADAIN']['EPS']),
                                         whiten_layers=whiten_layers,
-                                        wcta=self.config['WCTA'],
+                                        wcta=self.config['WCTA'] if feats or 'wcta' in self.config['TEACHERS'] else False,
                                         backend=tf.keras.backend, layers=tf.keras.layers, models=tf.keras.models, 
                                         utils=tf.keras.utils
                                         )
@@ -192,16 +192,16 @@ class Distiller(Trainer):
                     print(tf.reduce_min(alpha), tf.reduce_max(alpha), tf.reduce_mean(alpha))
                     print(tf.reduce_min(pred_t), tf.reduce_max(pred_t), tf.reduce_mean(pred_t))
 
-                if self.config['KD']['LOSS'] == 'old': # old kld version (CWD)
+                if self.config['KD']['LOSS'] == 'old': # old kld version
                     pred_t = tf.reshape(pred_t,(self.config['BATCH_SIZE'], -1))
                     pred = tf.reshape(pred,(self.config['BATCH_SIZE'], -1))
                     aux_loss = self.kd_loss_fn(tf.nn.softmax(pred_t / self.config['KD']['T'], axis=-1),
                         tf.nn.softmax(pred / self.config['KD']['T'], axis=-1)) * self.config['KD']['T'] ** 2
                 elif self.config['KD']['LOSS'] == 'kld': # kld loss
                     # create additional class channel by difference
-                    pred_t = tf.math.sigmoid(pred_t / self.config['KD']['T'])[...,None]
+                    pred_t = tf.math.sigmoid(pred_t / self.config['KD']['T'])
                     pred_t = tf.concat([tf.ones_like(pred_t) - pred_t, pred_t], axis=-1)
-                    pred = tf.math.sigmoid(pred / self.config['KD']['T'])[...,None]
+                    pred = tf.math.sigmoid(pred / self.config['KD']['T'])
                     pred = tf.concat([tf.ones_like(pred) - pred, pred], axis=-1)
                     aux_loss = self.kd_loss_fn(pred_t, pred) * self.config['KD']['T'] ** 2
                 # elif self.config['KD']['LOSS'] == 'logsum':
@@ -217,4 +217,4 @@ class Distiller(Trainer):
         grads = tape.gradient(loss, self.model.trainable_variables)
         self.optim.apply_gradients(zip(grads, self.model.trainable_variables))
 
-        return out_loss, self.config['KD']['ALPHA'] * aux_loss, metr, None
+        return out_loss, self.config['KD']['ALPHA'] * tf.reduce_mean(aux_loss), metr, None

@@ -41,7 +41,7 @@ class Trainer:
         self.model_dir = Path(config['MODEL_PATH'])
         self.log_dir = Path(config['LOG_PATH'])
         self.data_dir = Path(config['DATA_PATH'])
-        tb_name = f"{self.config['TARGET']}_{self.config['ID']}_{datetime.datetime.now().strftime('%m_%d_%H_%M')}"
+        tb_name = f"{self.model_name}_{self.config['ID']}_{datetime.datetime.now().strftime('%m_%d_%H_%M')}"
         self.tb_dir = self.log_dir.joinpath("tb").joinpath(tb_name)
 
         self.model_file = self.model_dir.joinpath(f"{self.model_name}_{self.config['ID']}.h5")
