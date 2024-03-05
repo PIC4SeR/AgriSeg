@@ -17,6 +17,26 @@ def loss_IoU(y_true, y_pred):
     return 1-iou
 
 #metric
+def mIoU_old(y_true, y_pred):
+    if len(y_pred.shape) != len(y_true.shape):
+        #y_true = y_true[...,None]
+        y_pred = y_pred[...,0]
+    
+    threshold = tf.constant([0.9])
+    y_pred_threshold=tf.cast(tf.math.greater(y_pred, threshold),tf.int32)
+    y_true=tf.cast(y_true,tf.int32)
+    
+
+    intersection_tensor=tf.math.multiply(y_true,y_pred_threshold)
+    inter=tf.reduce_sum(intersection_tensor)
+    
+    #union= a+b-intersection
+    union=tf.reduce_sum(tf.math.subtract(tf.math.add(y_true,y_pred_threshold),intersection_tensor))
+    
+    
+    return tf.math.divide(inter,union)
+
+#metric
 def mIoU(y_true, y_pred):
     if len(y_pred.shape) != len(y_true.shape):
         #y_true = y_true[...,None]
@@ -105,3 +125,11 @@ class ContrastiveLoss(tf.keras.losses.Loss):
         loss_2_1 = self.cce(self.contrastive_labels, tf.transpose(similarities))
         
         return (tf.reduce_sum(loss_1_2) + tf.reduce_sum(loss_2_1)) / 2 * self.weight
+
+def loss_filter(p, n=0.999):
+    if p <= n:
+        return 1
+    elif p > (1+n)/2:
+        return 0
+    else:
+        return ((n+1-2*p) / (1-n)) ** 2

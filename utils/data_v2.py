@@ -132,13 +132,6 @@ def random_resize_crop(x, y, min_p=0.8, input_size=224, seed=None):
     img = img[y:y+height, x:x+width]
     mask = mask[y:y+height, x:x+width]
     return img, mask
-    
-    stacked_image = tf.concat([x, y], axis=-1)
-    perc = tf.random.uniform(shape=[], minval=min_p, maxval=1., dtype=tf.float32, seed=seed)
-    perc = tf.math.floor(perc * img.shape[1])
-    image_crops = tf.image.random_crop(stacked_image, [perc,perc,4], seed=seed)
-    res_stacked_image = tf.image.resize(image_crops, [input_size,input_size])
-    return res_stacked_image[...,:-1], tf.math.round(res_stacked_image[...,-1])
 
     
 # LOAD DATASET

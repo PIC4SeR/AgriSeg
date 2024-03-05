@@ -15,7 +15,7 @@ import tensorflow as tf
 from utils.tools import save_log
 from utils.models import build_model_multi, build_model_binary
 from utils.mobilenet_v3 import MobileNetV3Large 
-
+from utils.training_tools import loss_filter
 from utils.train import Trainer
 
 
@@ -191,7 +191,7 @@ class Distiller(Trainer):
                     print(tf.reduce_min(alpha), tf.reduce_max(alpha), tf.reduce_mean(alpha))
                     print(tf.reduce_min(pred_t), tf.reduce_max(pred_t), tf.reduce_mean(pred_t))
 
-                if self.config['KD']['LOSS'] == 'old': # old kld version
+                if self.config['KD']['LOSS'] == 'old': # old kld version (CWD)
                     pred_t = tf.reshape(pred_t,(self.config['BATCH_SIZE'], -1))
                     pred = tf.reshape(pred,(self.config['BATCH_SIZE'], -1))
                     aux_loss = self.kd_loss_fn(tf.nn.softmax(pred_t / self.config['KD']['T'], axis=-1),
@@ -203,13 +203,24 @@ class Distiller(Trainer):
                     pred = tf.math.sigmoid(pred / self.config['KD']['T'])
                     pred = tf.concat([tf.ones_like(pred) - pred, pred], axis=-1)
                     aux_loss = self.kd_loss_fn(pred_t, pred) * self.config['KD']['T'] ** 2
+                    if self.config['KD']['FILTER'] == "error":
+                        pred_t_bin = tf.math.greater(pred_t, tf.constant([0.5]))
+                        mask = tf.equal(pred_t_bin, tf.cast(y, tf.bool))
+                        aux_loss = aux_loss * tf.cast(mask, tf.float32)
+                        n = tf.math.count_nonzero(aux_loss)
+                        aux_loss = tf.reduce_sum(aux_loss) / tf.cast(n, tf.float32) if n > 0 else 0.0
+                    elif self.config['KD']['FILTER'] == "confidence":
+                        shape = tf.shape(pred_t)
+                        w = tf.map_fn(loss_filter, tf.reshape(pred_t, [-1]), dtype=tf.float32)
+                        w = tf.reshape(w, shape)
+                        aux_loss = aux_loss * w
+                        
                 # elif self.config['KD']['LOSS'] == 'logsum':
                 #     feature-based distillation
                 # elif self.config['KD']['LOSS'] == 'mse':
                 #     feature-based distillation
                 # elif self.config['KD']['LOSS'] == 'mae':
                 #     feature-based distillation
-
                 
             loss = out_loss + self.config['KD']['ALPHA'] * tf.reduce_mean(aux_loss)
             

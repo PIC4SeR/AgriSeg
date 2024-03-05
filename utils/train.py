@@ -5,10 +5,6 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import warnings
 warnings.filterwarnings('ignore')
 
-import glob
-import math
-import random
-import argparse
 from pathlib import Path
 from contextlib import redirect_stdout
 import time, datetime
@@ -16,19 +12,17 @@ import gc
 import io
 trap = io.StringIO()
 
-import numpy as np
-import matplotlib.pyplot as plt
 from tqdm.notebook import tqdm as tqdm
 
 import tensorflow as tf
 # import tensorflow_addons as tfa
-#import tensorflow_probability as tfp
+# import tensorflow_probability as tfp
 import optuna 
 
 from utils.data import load_multi_dataset, split_data
 from utils.tools import save_log
 from utils.data import random_resize_crop, random_jitter, random_flip, random_grayscale, zca_whitening
-from utils.training_tools import mIoU, loss_IoU, ContrastiveLoss
+from utils.training_tools import mIoU, loss_IoU, ContrastiveLoss, mIoU_old
 from utils.models import build_model_multi, build_model_binary
 from utils.mobilenet_v3 import MobileNetV3Large 
 from utils.instance_norm import CovMatrix_ISW, instance_whitening_loss
@@ -231,7 +225,7 @@ class Trainer:
         else:
             self.get_opt_loss()
             
-        self.metric = mIoU
+        self.metric = mIoU if self.config['METRIC'] == 'iou' else mIoU_old
 
         self.train_loss_mean, self.train_metr_mean = tf.keras.metrics.Mean(), tf.keras.metrics.Mean()
         self.train_aux_mean = tf.keras.metrics.Mean()

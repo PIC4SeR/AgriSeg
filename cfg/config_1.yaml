@@ -63,7 +63,8 @@ KD:
     T: 2
     ENSEMBLE: 'mean'
     LOSS: 'kld' # 'kld' or 'mse' or 'mae' or 'logsum' or 'old'
- 
+    FILTER: False
+    
 CL:
     TEMP: 0.5
     WEIGHT: 0.0

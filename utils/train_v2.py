@@ -228,7 +228,7 @@ class Trainer:
         else:
             self.get_opt_loss()
             
-        self.metric = mIoU
+        self.metric = mIoU if self.config['METRIC'] == 'iou' else mIoU_old
 
         self.train_loss_mean, self.train_metr_mean = tf.keras.metrics.Mean(), tf.keras.metrics.Mean()
         self.train_aux_mean = tf.keras.metrics.Mean()

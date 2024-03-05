@@ -4,7 +4,7 @@ SEED: 0
 VERBOSE: False
 
 # model name
-NAME: erm
+NAME: kd_hilr
 SAVE_BEST: True
 
 HP_SEARCH: False
@@ -23,9 +23,10 @@ PADAIN:
 UNISTYLE: False
 WHITEN_LAYERS: []
 TEACHERS: 'tf_wcta'
+WEIGHTS: null
 
 # dataset
-TARGET: ['tree_2','chard','lettuce','vineyard']
+TARGET: null
 SOURCE: ['tree_2','chard','lettuce','vineyard']
 SUBSAMPLE: True
 NORM: 'tf' # 'tf' or 'torch'
@@ -59,10 +60,11 @@ METRIC: 'iou'
 
 AUX_LOSS: False
 KD:
-    ALPHA: 0.01
-    T: 2
+    ALPHA: 1
+    T: 3
     ENSEMBLE: 'mean'
     LOSS: 'kld' # 'kld' or 'mse' or 'mae' or 'logsum' or 'old'
+    FILTER: False
  
 CL:
     TEMP: 0.5
@@ -77,7 +79,7 @@ SGD:
 ADAM:
     LR: 3e-4
 ADAMW:
-    LR: 1e-4
+    LR: 5e-5
     LR_END: 5e-6
     DECAY: 1
     WD: 1e-5
