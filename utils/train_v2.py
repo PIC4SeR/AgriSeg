@@ -27,13 +27,11 @@ from tensorboard.plugins.hparams import api as hp
 import optuna 
 
 from utils.data_v2 import load_multi_dataset, split_data
-from utils.tools import read_yaml, save_log, get_args, ValCallback, TBCallback
-from utils.data import random_resize_crop, random_jitter, random_flip, data_aug, normalize_imagenet, random_grayscale
-from utils.training_tools import mIoU, loss_IoU, DiceBCELoss, ContrastiveLoss, binary_weighted_cross_entropy
+from utils.tools import save_log
+from utils.data import random_resize_crop, random_jitter, random_flip, random_grayscale
+from utils.training_tools import mIoU, loss_IoU, ContrastiveLoss, mIoU_old
 from utils.models import build_model_multi, build_model_binary
-from utils.cityscapes_utils import CityscapesDataset
 from utils.mobilenet_v3 import MobileNetV3Large 
-from utils.lovasz_loss import lovasz_hinge
 from utils.instance_norm import CovMatrix_ISW, instance_whitening_loss
 from utils.xded import pixelwise_XDEDLoss
 
@@ -174,7 +172,7 @@ class Trainer:
     def get_model(self):    
         
         whiten_layers = self.config['WHITEN_LAYERS'] if self.config['UNISTYLE'] \
-                        and self.config['METHOD'] in ['ISW','XDED','IN','KD'] else [],
+                        and self.config['METHOD'] in ['ISW','XDED','IBN','KD'] else [],
         
         # load pretrained model
         backbone = MobileNetV3Large(input_shape=(self.config['IMG_SIZE'], self.config['IMG_SIZE'], 3),
@@ -385,7 +383,7 @@ class Trainer:
                 aux_loss = self.aux_loss(feat_b, feat)
                 
             if self.config['METHOD'] == 'XDED':
-                aux_loss = self.xded(pred, y) * self.config['KD']['ALPHA']
+                aux_loss = self.xded(pred, y) * self.config['XDED']['ALPHA']
                
             elif self.config['METHOD'] == 'ISW':
                 

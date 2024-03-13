@@ -1,5 +1,4 @@
 import os
-import argparse
 import joblib
 
 import optuna
@@ -21,38 +20,47 @@ class HPSearcher:
         self.trial = trial
         
         self.search_space = {
-                            "LR": [5e-5, 5e-4],
-                            # "TARGET": ["tree_2", "chard", "lettuce", "vineyard"],
-                            # "FREEZE_BACKBONE": [True, False],
-                            "T": [1, 2, 3],
-                            "ALPHA": [0.001, 0.01, 0.1],
-                            # "WCTA": [True, False],
-                            # "STYLE_AUG": [True, False],
-                            # "FWCTA": [True, False],
-                            }
+            # "LR": [5e-5, 5e-4],
+            # "TARGET": ["tree_2", "chard", "lettuce", "vineyard"],
+            # "FREEZE_BACKBONE": [True, False],
+            # "T": [2, 3],
+            # "ALPHA": [0.1, 0.5],
+            "WCTA": [0.0, 0.01],
+            # "SOUP": ['uniform', False],
+            # "STYLE_AUG": [True, False],
+            # "WHITEN_LAYERS": [(),(0,0),(0,1),(0,1,2)],
+            # "FILTER": ['error', False]
+            "NORM": ["pre_std", "post_std", "post_norm", "pre_norm"],
+            "TEACHERS": ["tf_geom", "tf_geom_wcta"]
+            }
     
     def get_random_hps(self):
-        
-        # self.config['CL']['WEIGHT'] = self.trial.suggest_categorical("AUX_WEIGHT", [0.01, 0.1])
-        # self.config['PADAIN']['P'] = self.trial.suggest_categorical("P", [0.001, 0.01])
-        # self.config['CL']['TEMP'] = self.trial.suggest_categorical("TEMP", [0.1, 0.5])
 
-        self.config['KD']['T'] = self.trial.suggest_categorical("T", [1, 2, 3])
-        self.config['KD']['ALPHA'] = self.trial.suggest_categorical("ALPHA", [0.001, 0.01, 0.1])
-        # self.config['WCTA'] = self.trial.suggest_categorical("WCTA", [True, False])
+        # self.config['KD']['T'] = self.trial.suggest_categorical("T", [2, 3])
+        # self.config['KD']['ALPHA'] = self.trial.suggest_categorical("ALPHA", [0.1, 0.5])
+        # self.config['KD']['FILTER'] = self.trial.suggest_categorical("FILTER", ['error', False])
+        # self.config['KD']['SOUP'] = self.trial.suggest_categorical("SOUP", ['uniform', False])
+        self.config['WCTA'] = self.trial.suggest_categorical("WCTA", [0.0, 0.01])
         # self.config['STYLE_AUG'] = self.trial.suggest_categorical("STYLE_AUG", [True, False])
+        self.config['KD']['NORM'] = self.trial.suggest_categorical("NORM", ["pre_std", "post_std", "post_norm", "pre_norm"])
+        self.config['TEACHERS'] = self.trial.suggest_categorical("TEACHERS", ["tf_geom", "tf_geom_wcta"])
+        # self.config['TEACHERS'] = f"{self.config['NORM']}_" + \
+        #                           f"{'style' if self.config['STYLE_AUG'] else 'geom'}" + \
+        #                           f"{'_wcta' if self.config['WCTA'] else ''}"
         # self.config['FWCTA'] = self.trial.suggest_categorical("FWCTA", [True, False])
         # self.config['WHITEN_LAYERS'] = self.trial.suggest_categorical("WHITEN_LAYERS", [(),(0,0),(0,1),(0,1,2)])
-
-        self.config['ADAMW']['LR'] = self.trial.suggest_categorical("LR", [5e-5, 5e-4])
-        # self.config['TARGET'] = self.trial.suggest_categorical("TARGET", ["tree_2", "chard", "lettuce", "vineyard"])
+        # self.config['ADAMW']['LR'] = self.trial.suggest_categorical("LR", [5e-5, 5e-4])
         # self.config['FREEZE_BACKBONE'] = self.trial.suggest_categorical("FREEZE_BACKBONE", [True, False])        
         
         if self.config['VERBOSE']:
             self.logger.save_log(self.config[self.config['MODE']])
 
-        print(f"LR={self.config['ADAMW']['LR']}, KD={self.config['KD']['T']}, ALPHA={self.config['KD']['ALPHA']}")
-    
+        # print(f"KD={self.config['KD']['T']}, ALPHA={self.config['KD']['ALPHA']}, WCTA={self.config['WCTA']}")
+        # print(f"WCTA={self.config['WCTA']}, SOUP={self.config['KD']['SOUP']}")
+        # print(f"FILTER={self.config['KD']['FILTER']}")
+        # print(f"FWCTA={self.config['FWCTA']}, WHITEN_LAYERS={self.config['WHITEN_LAYERS']}")
+        # print(f"FILTER={self.config['KD']['FILTER']}")
+        print(f"NORM={self.config['KD']['NORM']}, WCTA={self.config['WCTA']}, TEACHERS={self.config['TEACHERS']}")
     
     def objective(self, trial):
         name = 'gridsearch_' + str(trial.datetime_start) + str(trial.number)

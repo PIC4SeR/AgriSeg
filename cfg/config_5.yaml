@@ -8,20 +8,20 @@ NAME: null
 SAVE_BEST: True
 
 HP_SEARCH: False
-HP_SEARCH_NAME: 'hp_norm'
+HP_SEARCH_NAME: 'hp_filter'
 HP_SEARCH_DIR: 'trials'
-N_TRIALS: 9
+N_TRIALS: 2
 
 CITYSCAPES: False
 
 # DG methodology
-DG: True
-METHOD: 'KD'
+DG: False
+METHOD: null
 PADAIN:
     P: 0.001
     EPS: 1e-5
 UNISTYLE: False
-WHITEN_LAYERS: []
+WHITEN_LAYERS: [-1,0]
 TEACHERS: null
 SOUP: False
 SMA: False
@@ -38,7 +38,7 @@ RND_GREY: 0.1
 RND_JITTER: 1.0
 RND_JITTER_RNG: 0.4
 ZCA: False
-WCTA: False
+WCTA: True
 FWCTA: False
 
 # paths
@@ -62,12 +62,17 @@ METRIC: 'iou'
 AUX_LOSS: False
 KD:
     ALPHA: 0.1
-    T: 2
+    T: 3
     ENSEMBLE: 'mean'
     LOSS: 'kld' # 'kld' or 'mse' or 'mae' or 'logsum' or 'old'
     FILTER: False
-    NORM: True
-    
+    NORM: False
+
+XDED:
+    ALPHA: 0.001
+    T: 3
+ISW:
+    ALPHA: 0.001
 CL:
     TEMP: 0.5
     WEIGHT: 0.0

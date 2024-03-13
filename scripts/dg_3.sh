@@ -1,13 +1,13 @@
 #!/bin/bash
-    
-domains="tree_2 chard lettuce vineyard"
+
+domains="tree_2"
 meth="KD"
 
 for target in $domains; do # Iterate on domains
-    for i in 1 2 3 4 5; do # Multiple runs
+    for i in 5; do # Multiple runs
         date
         echo "Training: meth=$meth, target=$target, id=$i"
-        python3 main.py --target $target --id $i --config utils/config_3.yaml --method $meth --cuda 2 2>&1 | tee logs/KD_geom_wcta.log
+        python3 main.py --target $target --id $i --method $meth --config cfg/config_3.yaml --cuda 4 2>&1 | tee logs/soup.log
     done
 done
 

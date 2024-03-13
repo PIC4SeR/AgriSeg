@@ -6,14 +6,16 @@ class pixelwise_XDEDLoss(tf.keras.losses.Loss):
     def __init__(self, temp_factor=2.0):
         super(pixelwise_XDEDLoss, self).__init__()
         self.temp_factor = temp_factor
-        self.kl_div = tf.keras.losses.KLDivergence(reduction=tf.keras.losses.Reduction.SUM)
+        self.kl_div = tf.keras.losses.KLDivergence(reduction=tf.keras.losses.Reduction.NONE)
         self.CLASS_NUM = 1
 
     def xded_loss(self, input, target):
-        
-        loss = self.kl_div(tf.nn.softmax(input/self.temp_factor, axis=-1),
-                           tf.nn.softmax(target/self.temp_factor, axis=-1)) * (self.temp_factor**2)/input.shape[0]
-        return loss
+        pred_t = tf.math.sigmoid(target / self.temp_factor)
+        pred_t_h = tf.concat([tf.ones_like(pred_t) - pred_t, pred_t], axis=-1)
+        pred = tf.math.sigmoid(input / self.temp_factor)
+        pred_h = tf.concat([tf.ones_like(pred) - pred, pred], axis=-1)
+        aux_loss = self.kl_div(pred_t_h, pred_h) * self.temp_factor ** 2
+        return tf.reduce_mean(aux_loss)
 
     def call(self, main_out, gts):
         # main_out.shape : [batch, 1, 768, 768]
@@ -30,7 +32,7 @@ class pixelwise_XDEDLoss(tf.keras.losses.Loss):
         cur_gt_idx = flat_gts == 1 # [False, True, ...]
         #print(cur_gt_idx.shape)
         x = tf.boolean_mask(flat_out,cur_gt_idx)
-        flat_targets = tf.reduce_mean(x) * tf.cast(cur_gt_idx,tf.float32)
+        flat_targets = tf.reduce_mean(x) * tf.cast(tf.reshape(cur_gt_idx,(-1, self.CLASS_NUM)),tf.float32)
         #print(flat_out.shape)
         #print(flat_out.shape)
         

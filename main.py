@@ -23,7 +23,7 @@ def main():
     # define some variables and read config
     args, config = get_args_and_cfg()
     #select the working GPU
-    if config['NAME'] == 'test':
+    if config['NAME'] == 'test' or config['METHOD'] == 'ISW':
         tf.config.run_functions_eagerly(True)
     gpus = tf.config.experimental.list_physical_devices('GPU')
     tf.config.experimental.set_visible_devices(gpus[args.cuda], 'GPU')

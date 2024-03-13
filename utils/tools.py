@@ -191,7 +191,8 @@ def get_cfg(args):
     config['WEIGHTS'] = args.weights if args.weights is not None else None
     config['TEST'] = True if args.test else False
     config['TEACHERS'] = f"{config['NORM']}_{'style' if config['STYLE_AUG'] else 'geom'}" + \
-                         f"{'_wcta' if config['WCTA'] else ''}" if config['TEACHERS'] is None else config['TEACHERS']
+                         f"{'_wcta' if config['WCTA'] else ''}" + \
+                         f"{'_ema' if config['SMA'] else ''}" if config['TEACHERS'] is None else config['TEACHERS']
     return config
 
 def get_args_and_cfg():
@@ -200,27 +201,27 @@ def get_args_and_cfg():
     return args, config
     
 
-class ValCallback(tf.keras.callbacks.Callback):
-    def __init__(self, ds_val, log_dir):
-        self.ds_val = ds_val
-        self.test_summary_writer = tf.summary.create_file_writer(str(log_dir))
-        self.best_val = 0.0
-        self.best_epoch = 0
+# class ValCallback(tf.keras.callbacks.Callback):
+#     def __init__(self, ds_val, log_dir):
+#         self.ds_val = ds_val
+#         self.test_summary_writer = tf.summary.create_file_writer(str(log_dir))
+#         self.best_val = 0.0
+#         self.best_epoch = 0
 
-    def on_train_end(self, logs=None):
-        print(f"Best test {self.best_val}, Epoch {self.best_epoch}")
+#     def on_train_end(self, logs=None):
+#         print(f"Best test {self.best_val}, Epoch {self.best_epoch}")
         
-    def on_epoch_end(self, epoch, logs={}):
-        loss, metric = self.model.evaluate(self.ds_val, verbose=2, workers=8, use_multiprocessing=True)
-        if metric > self.best_val:
-            self.best_val = metric
-            self.best_epoch = epoch
-        with self.test_summary_writer.as_default():
-            tf.summary.scalar('epoch_loss', loss, step=epoch)
-            tf.summary.scalar('epoch_mIoU', metric, step=epoch)
+#     def on_epoch_end(self, epoch, logs={}):
+#         loss, metric = self.model.evaluate(self.ds_val, verbose=2, workers=8, use_multiprocessing=True)
+#         if metric > self.best_val:
+#             self.best_val = metric
+#             self.best_epoch = epoch
+#         with self.test_summary_writer.as_default():
+#             tf.summary.scalar('epoch_loss', loss, step=epoch)
+#             tf.summary.scalar('epoch_mIoU', metric, step=epoch)
             
             
-class TBCallback(tf.keras.callbacks.Callback):
+# class TBCallback(tf.keras.callbacks.Callback):
     
     def __init__(self, tb_callback):
         self.writer = tb_callback.writer

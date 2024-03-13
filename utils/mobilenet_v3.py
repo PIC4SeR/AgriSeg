@@ -212,24 +212,25 @@ def MobileNetV3(stack_fn,
                       padding='valid',
                       use_bias=False,
                       name='Conv')(x)
-    
-    if mode in ['PADAIN']:
-        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
         
     x = layers.BatchNormalization(axis=channel_axis,
                                   epsilon=1e-3,
                                   momentum=0.999,
                                   name='Conv/BatchNorm')(x)
-    x = layers.Activation(activation)(x)
 
-    if -1 in whiten_layers and mode in ['ISW', 'XDED', 'IN', 'KD']:
-        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
+    if -1 in whiten_layers and mode in ['ISW', 'XDED', 'IBN', 'KD']:
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps, i=-1)
 #        if mode == 'ISW':
 #            features.append(x)
         
+    x = layers.Activation(activation)(x)
+
+    if mode in ['PADAIN']:
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
+
     x, feats = stack_fn(x, kernel, activation, se_ratio, mode=mode, whiten_layers=whiten_layers)
     
-#    features.append(feats)
+#   features.append(feats)
     
     last_conv_ch = _depth(backend.int_shape(x)[channel_axis] * 6)
 
@@ -243,15 +244,16 @@ def MobileNetV3(stack_fn,
                       padding='same',
                       use_bias=False,
                       name='Conv_1')(x)
-    
-    if mode in ['PADAIN']:
-        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
             
     x = layers.BatchNormalization(axis=channel_axis,
                                   epsilon=1e-3,
                                   momentum=0.999,
                                   name='Conv_1/BatchNorm')(x)
+    
     x = layers.Activation(activation)(x)
+    
+    if mode in ['PADAIN']:
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
     
     if include_top:
         x = layers.GlobalAveragePooling2D()(x)
@@ -435,15 +437,15 @@ def _inverted_res_block(x, expansion, filters, kernel_size, stride,
                           use_bias=False,
                           name=prefix + 'expand')(x)
         
-        if mode == 'PADAIN':
-            x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
-        
         x = layers.BatchNormalization(axis=channel_axis,
                                       epsilon=1e-3,
                                       momentum=0.999,
                                       name=prefix + 'expand/BatchNorm')(x)
         x = layers.Activation(activation, name=prefix + 'expand/act_1')(x)
-      
+
+        if mode == 'PADAIN':
+            x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
+
     if stride == 2:
         x = layers.ZeroPadding2D(padding=correct_pad(backend, x, kernel_size),
                                  name=prefix + 'depthwise/pad')(x)
@@ -453,14 +455,14 @@ def _inverted_res_block(x, expansion, filters, kernel_size, stride,
                                use_bias=False,
                                name=prefix + 'depthwise')(x)
     
-    if mode == 'PADAIN':
-        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
-    
     x = layers.BatchNormalization(axis=channel_axis,
                                   epsilon=1e-3,
                                   momentum=0.999,
                                   name=prefix + 'depthwise/BatchNorm')(x)
     x = layers.Activation(activation, name=prefix + 'expand/act_2')(x)
+
+    if mode == 'PADAIN':
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
 
     if block_id in whiten_layers and mode in []:
         x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
@@ -474,8 +476,8 @@ def _inverted_res_block(x, expansion, filters, kernel_size, stride,
                       use_bias=False,
                       name=prefix + 'project')(x)
     
-    if mode == 'PADAIN':
-        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
+    # if mode == 'PADAIN':
+    #     x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
     
     x = layers.BatchNormalization(axis=channel_axis,
                                   epsilon=1e-3,
@@ -485,10 +487,10 @@ def _inverted_res_block(x, expansion, filters, kernel_size, stride,
     if stride == 1 and infilters == filters:
         x = layers.Add(name=prefix + 'Add')([shortcut, x])
         
-    if block_id in whiten_layers and mode in ['ISW', 'IN', 'XDED', 'KD']:
-        x = _instance_norm_block(x, mode=mode, p=p, eps=eps)
+    if block_id in whiten_layers and mode in ['ISW', 'IBN', 'XDED', 'KD']:
+        x = _instance_norm_block(x, mode=mode, p=p, eps=eps, i=block_id)
         if mode == 'ISW':
             features.append(x) 
-            
+    
     return x, features
 

@@ -15,6 +15,7 @@ trap = io.StringIO()
 from tqdm.notebook import tqdm as tqdm
 
 import tensorflow as tf
+# from tensorflow_models.optimization import ExponentialMovingAverage
 # import tensorflow_addons as tfa
 # import tensorflow_probability as tfp
 import optuna 
@@ -22,7 +23,7 @@ import optuna
 from utils.data import load_multi_dataset, split_data
 from utils.tools import save_log
 from utils.data import random_resize_crop, random_jitter, random_flip, random_grayscale, zca_whitening
-from utils.training_tools import mIoU, loss_IoU, ContrastiveLoss, mIoU_old
+from utils.training_tools import mIoU, loss_IoU, ContrastiveLoss, mIoU_old, EMA
 from utils.models import build_model_multi, build_model_binary
 from utils.mobilenet_v3 import MobileNetV3Large 
 from utils.instance_norm import CovMatrix_ISW, instance_whitening_loss
@@ -30,7 +31,7 @@ from utils.xded import pixelwise_XDEDLoss
 
 class Trainer:  
     
-    def __init__(self, config, logger, strategy=None, trial=None):
+    def __init__(self, config, logger, strategy=None, trial=None, test=False):
 
         self.config = config
         self.logger = logger
@@ -50,7 +51,7 @@ class Trainer:
         self.log_file = self.log_dir.joinpath(f"{self.model_name}.txt")
         #save_log(config, self.log_file)
 
-        self.get_data(test_only=config['TEST'])
+        self.get_data(test_only=config['TEST'] or test)
         
         if self.strategy:
             with self.strategy.scope():
@@ -64,7 +65,7 @@ class Trainer:
         self.cov_matrix_layer = None
         if config['METHOD'] == 'ISW':
             self.whitening = True
-            in_channel_list = [16, 16, 24] #[16, 24, 24]
+            in_channel_list = [16, 16] #[16, 16, 24]
             self.cov_matrix_layer = []
             for i, c in enumerate(in_channel_list):
                 self.cov_matrix_layer.append(CovMatrix_ISW(dim=c, relax_denom=0, clusters=3))
@@ -166,7 +167,7 @@ class Trainer:
     
     
     def get_model(self):    
-        if self.config['UNISTYLE'] and self.config['METHOD'] in ['ISW','XDED','IN','KD']:
+        if self.config['UNISTYLE'] and self.config['METHOD'] in ['ISW','XDED','IBN','KD']:
             whiten_layers = self.config['WHITEN_LAYERS'] 
         else:
             whiten_layers = [],
@@ -259,6 +260,9 @@ class Trainer:
         elif self.config['OPTIMIZER'] == 'adam':
             self.optim = tf.keras.optimizers.Adam(learning_rate=float(self.config['ADAM']['LR']))
 
+        if self.config['SMA']:
+            self.ema = EMA(self.model, 0.999)
+            self.ema.register()
             
         if self.config['LOSS'] == 'bce':
             self.loss = tf.losses.BinaryCrossentropy(from_logits=True, reduction=tf.keras.losses.Reduction.NONE)
@@ -273,7 +277,7 @@ class Trainer:
                                             temperature=self.config['CL']['TEMP'])
             
         if self.config['METHOD'] == 'XDED':
-            self.xded = pixelwise_XDEDLoss(temp_factor=self.config['KD']['T'])
+            self.xded = pixelwise_XDEDLoss(temp_factor=self.config['XDED']['T'])
 
         
     def get_callbacks(self):
@@ -292,16 +296,23 @@ class Trainer:
         now = time.perf_counter()
         
         for epoch in range(self.config['N_EPOCHS']):
+            # self.model.trainable = True
             for step, (x, y) in enumerate(self.ds_train, 1):
                 self.step = step
                 if self.strategy is None:
                     train_loss, train_aux, train_metr, self.cov_matrix_layer = self.train_step(x, y, self.cov_matrix_layer)
                 else:
                     train_loss, train_aux, train_metr, self.cov_matrix_layer = self.distributed_train_step(x, y, self.cov_matrix_layer)
-                
+
+                if self.config['SMA']:
+                    self.ema.update()
+
                 self.train_loss_mean(tf.reduce_sum(train_loss))
                 self.train_aux_mean(tf.reduce_sum(train_aux))
                 self.train_metr_mean(tf.reduce_mean(train_metr))
+
+                if self.config['NAME'] == 'test' and step > 50:
+                    break
             
             train_loss = self.train_loss_mean.result()
             train_aux = self.train_aux_mean.result()
@@ -309,6 +320,9 @@ class Trainer:
             self.train_loss_mean.reset_states()
             self.train_aux_mean.reset_states()
             self.train_metr_mean.reset_states()
+
+            if self.config['SMA']:
+                self.ema.apply_shadow()
 
             val_loss, val_metr = self.evaluate(self.ds_val, split='val')
 #             val_loss = self.val_loss_mean.result()
@@ -322,13 +336,16 @@ class Trainer:
 #             self.test_loss_mean.reset_states()
 #             self.test_metr_mean.reset_states()
         
-            if val_metr > best_metr:
+            if val_metr >= best_metr:
                 best_metr = val_metr
                 best_test_metr = test_metr
                 best_metr_epoch = epoch
                 self.model.save_weights(self.model_file)
-                
-            if test_metr > btm:
+            
+            if self.config['SMA']:
+                self.ema.restore()
+
+            if test_metr >= btm:
                 btm = test_metr
                 btv = val_metr
                 bte = epoch
@@ -385,10 +402,9 @@ class Trainer:
                 aux_loss = self.aux_loss(feat_b, feat)
                 
             if self.config['METHOD'] == 'XDED':
-                aux_loss = self.xded(pred, y) * self.config['KD']['ALPHA']
+                aux_loss = self.xded(pred, y) * self.config['XDED']['ALPHA']
                
             elif self.config['METHOD'] == 'ISW':
-                
                 feat_array = tf.TensorArray(tf.float32, len(feat), infer_shape=False, clear_after_read=False)
                 for i, f in enumerate(feat):
                     feat_array = feat_array.write(i,f)
@@ -411,7 +427,7 @@ class Trainer:
                     else:
                         eye, mask_matrix, margin, num_remove_cov = self.cov_matrix_layer[index].get_mask_matrix()
                         loss = instance_whitening_loss(feat_array.read(index), eye, mask_matrix, margin, num_remove_cov)
-                        aux_loss = aux_loss + loss * self.config['KD']['ALPHA']
+                        aux_loss = aux_loss + loss * self.config['ISW']['ALPHA']
                         
                 aux_loss = aux_loss / tf.cast(len(cov_matrix_layer), tf.float32)
 
@@ -487,6 +503,7 @@ class Trainer:
                 self.test_loss_mean(loss)
                 self.test_metr_mean(metric)
             i += 1
+
         return losses/i, metrics/i
     
     

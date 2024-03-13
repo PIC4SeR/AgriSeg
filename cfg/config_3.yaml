@@ -4,28 +4,30 @@ SEED: 0
 VERBOSE: False
 
 # model name
-NAME: 'da'
+NAME: null
 SAVE_BEST: True
 
-HP_SEARCH: True
-HP_SEARCH_NAME: 'da'
+HP_SEARCH: False
+HP_SEARCH_NAME: ''
 HP_SEARCH_DIR: 'trials'
-N_TRIALS: 32
+N_TRIALS: 12
 
 CITYSCAPES: False
 
 # DG methodology
 DG: True
-METHOD: 'None'
+METHOD: null
 PADAIN:
     P: 0.001
     EPS: 1e-5
-UNISTYLE: False
+UNISTYLE: True
 WHITEN_LAYERS: []
 TEACHERS: null
+SOUP: 'uniform'
+SMA: False
 
 # dataset
-TARGET: null
+TARGET: ['tree_2','chard','lettuce','vineyard']
 SOURCE: ['tree_2','chard','lettuce','vineyard']
 SUBSAMPLE: True
 NORM: 'tf' # 'tf' or 'torch'
@@ -55,13 +57,21 @@ N_CLASSES: 1 # 1 for binary
 N_EPOCHS: 50
 FREEZE_BACKBONE: False
 LOSS: 'bce'
+METRIC: 'iou'
 
 AUX_LOSS: False
 KD:
-    ALPHA: 0.01
-    T: 2
+    ALPHA: 1
+    T: 3
     ENSEMBLE: 'mean'
- 
+    LOSS: 'kld' # 'kld' or 'mse' or 'mae' or 'logsum' or 'old'
+    FILTER: False
+    NORM: False
+
+XDED:
+    ALPHA: 0.001
+    T: 2
+
 CL:
     TEMP: 0.5
     WEIGHT: 0.0
@@ -75,7 +85,7 @@ SGD:
 ADAM:
     LR: 3e-4
 ADAMW:
-    LR: 1e-4
+    LR: 5e-5
     LR_END: 5e-6
     DECAY: 1
     WD: 1e-5

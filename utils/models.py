@@ -10,9 +10,8 @@ def build_model_binary(base_model, dropout_rate, n_class, sigmoid=False, mode=No
     #1/16 resolution output
     out_1_16 = base_model.get_layer('expanded_conv_12/expand/act_1').output
     
-    ls = ['instance_normalization',
-          'instance_normalization_1',
-          'instance_normalization_2']
+    ls = ['ibn',
+          'ibn_1']
     
     if mode == 'ISW':
         features = []

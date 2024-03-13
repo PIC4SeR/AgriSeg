@@ -15,7 +15,7 @@ import tensorflow as tf
 from utils.tools import save_log
 from utils.models import build_model_multi, build_model_binary
 from utils.mobilenet_v3 import MobileNetV3Large 
-from utils.training_tools import loss_filter
+from utils.training_tools import loss_filter, uniform_soup, greedy_soup, mIoU, normalize
 from utils.train import Trainer
 
 
@@ -44,18 +44,22 @@ class Distiller(Trainer):
         save_log(config, self.log_file)
 
         self.get_data(test_only=test)
-        self.get_student()
         if not test:
             self.get_teacher()
+        else:
+            self.model = None
+        self.get_student()
         self.get_optimizer()
-        self.get_callbacks()        
+        self.get_callbacks()
 
         self.kd_loss_fn = tf.keras.losses.KLDivergence(reduction=tf.keras.losses.Reduction.NONE)
         self.cov_matrix_layer = None
     
         print('Distiller Created')
     
-    def get_student(self):    
+    def get_student(self):
+        if self.model is not None:
+            return
         self.model = self.get_single_model(whiten=True)
         
         
@@ -154,6 +158,15 @@ class Distiller(Trainer):
         
         models = [self.get_single_model(w, feats=False) for w in weights]
         
+        if self.config['SOUP'] == 'uniform':
+            # average teacher weights
+            self.model = uniform_soup(self.get_single_model(feats=True), [self.model_dir.joinpath(w) for w in weights])
+        elif self.config['SOUP'] == 'greedy':
+            self.model = greedy_soup(self.get_single_model(feats=True), [self.model_dir.joinpath(w) for w in weights],
+                                     self.ds_val, mIoU, update_greedy=True, verbose=False)
+        else:
+            self.model = None
+            
         model_input = tf.keras.Input(shape=(self.config['IMG_SIZE'], self.config['IMG_SIZE'], 3))
         model_outputs = [model(model_input) for model in models]
         # ensemble_output = tf.keras.layers.Average()(model_outputs)
@@ -183,6 +196,9 @@ class Distiller(Trainer):
             elif self.config['METHOD'] in ['KD']: 
                 pred_t = self.teacher(x, training=False)  
                 if self.config['KD']['ENSEMBLE'] == 'mean':
+                    if 'pre' in self.config['KD']['NORM']:
+                        pred = normalize(pred, self.config['KD']['NORM'])
+                        pred_t = normalize(pred_t, self.config['KD']['NORM'])
                     pred_t = tf.reduce_mean(pred_t, axis=0)
                 elif self.config['KD']['ENSEMBLE'] == 'w_mean':
                     print(tf.reduce_min(pred_t), tf.reduce_max(pred_t), tf.reduce_mean(pred_t))
@@ -190,29 +206,33 @@ class Distiller(Trainer):
                     pred_t = tf.reduce_sum(pred_t * alpha, axis=0)
                     print(tf.reduce_min(alpha), tf.reduce_max(alpha), tf.reduce_mean(alpha))
                     print(tf.reduce_min(pred_t), tf.reduce_max(pred_t), tf.reduce_mean(pred_t))
+                
+                if 'post' in self.config['KD']['NORM']:
+                    pred = normalize(pred, self.config['KD']['NORM'])
+                    pred_t = normalize(pred_t, self.config['KD']['NORM'])
 
                 if self.config['KD']['LOSS'] == 'old': # old kld version (CWD)
                     pred_t = tf.reshape(pred_t,(self.config['BATCH_SIZE'], -1))
                     pred = tf.reshape(pred,(self.config['BATCH_SIZE'], -1))
-                    aux_loss = self.kd_loss_fn(tf.nn.softmax(pred_t / self.config['KD']['T'], axis=-1),
-                        tf.nn.softmax(pred / self.config['KD']['T'], axis=-1)) * self.config['KD']['T'] ** 2
+                    aux_loss = self.kd_loss_fn(
+                        tf.nn.softmax(pred_t / self.config['KD']['T'], axis=-1),
+                        tf.nn.softmax(pred / self.config['KD']['T'], axis=-1)
+                        ) * self.config['KD']['T'] ** 2
                 elif self.config['KD']['LOSS'] == 'kld': # kld loss
                     # create additional class channel by difference
                     pred_t = tf.math.sigmoid(pred_t / self.config['KD']['T'])
-                    pred_t = tf.concat([tf.ones_like(pred_t) - pred_t, pred_t], axis=-1)
+                    pred_t_h = tf.concat([tf.ones_like(pred_t) - pred_t, pred_t], axis=-1)
                     pred = tf.math.sigmoid(pred / self.config['KD']['T'])
-                    pred = tf.concat([tf.ones_like(pred) - pred, pred], axis=-1)
-                    aux_loss = self.kd_loss_fn(pred_t, pred) * self.config['KD']['T'] ** 2
+                    pred_h = tf.concat([tf.ones_like(pred) - pred, pred], axis=-1)
+                    aux_loss = self.kd_loss_fn(pred_t_h, pred_h) * self.config['KD']['T'] ** 2
                     if self.config['KD']['FILTER'] == "error":
-                        pred_t_bin = tf.math.greater(pred_t, tf.constant([0.5]))
+                        pred_t_bin = tf.math.greater(pred_t, tf.constant([0.5]))[...,0]
                         mask = tf.equal(pred_t_bin, tf.cast(y, tf.bool))
                         aux_loss = aux_loss * tf.cast(mask, tf.float32)
                         n = tf.math.count_nonzero(aux_loss)
                         aux_loss = tf.reduce_sum(aux_loss) / tf.cast(n, tf.float32) if n > 0 else 0.0
                     elif self.config['KD']['FILTER'] == "confidence":
-                        shape = tf.shape(pred_t)
-                        w = tf.map_fn(loss_filter, tf.reshape(pred_t, [-1]), dtype=tf.float32)
-                        w = tf.reshape(w, shape)
+                        w = loss_filter(pred_t)[...,0]
                         aux_loss = aux_loss * w
                         
                 # elif self.config['KD']['LOSS'] == 'logsum':

@@ -4,29 +4,31 @@ SEED: 0
 VERBOSE: False
 
 # model name
-NAME: kd_hilr
+NAME: null
 SAVE_BEST: True
 
-HP_SEARCH: False
-HP_SEARCH_NAME: 'hp_new'
+HP_SEARCH: True
+HP_SEARCH_NAME: 'last'
 HP_SEARCH_DIR: 'trials'
-N_TRIALS: 18
+N_TRIALS: 16
 
 CITYSCAPES: False
 
 # DG methodology
 DG: True
-METHOD: 'None'
+METHOD: null
 PADAIN:
     P: 0.001
     EPS: 1e-5
 UNISTYLE: False
 WHITEN_LAYERS: []
-TEACHERS: 'tf_wcta'
+TEACHERS: null
 WEIGHTS: null
+SOUP: False
+SMA: False
 
 # dataset
-TARGET: null
+TARGET: ['tree_2','chard','lettuce','vineyard']
 SOURCE: ['tree_2','chard','lettuce','vineyard']
 SUBSAMPLE: True
 NORM: 'tf' # 'tf' or 'torch'
@@ -37,7 +39,7 @@ RND_GREY: 0.1
 RND_JITTER: 1.0
 RND_JITTER_RNG: 0.4
 ZCA: False
-WCTA: True
+WCTA: False
 FWCTA: False
 
 # paths
@@ -60,12 +62,17 @@ METRIC: 'iou'
 
 AUX_LOSS: False
 KD:
-    ALPHA: 1
-    T: 3
+    ALPHA: 0.1
+    T: 2
     ENSEMBLE: 'mean'
     LOSS: 'kld' # 'kld' or 'mse' or 'mae' or 'logsum' or 'old'
     FILTER: False
- 
+    NORM: '' # 'pre_norm' or 'post_norm' or 'pre_std' or 'post_std'
+
+XDED:
+    ALPHA: 0.001
+    T: 2
+
 CL:
     TEMP: 0.5
     WEIGHT: 0.0
