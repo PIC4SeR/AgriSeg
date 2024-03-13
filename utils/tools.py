@@ -161,7 +161,7 @@ def get_args():
     parser = argparse.ArgumentParser(description="Script to launch training",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # Utils
-    parser.add_argument('--config', default='utils/config.yaml', help="Configuration file")
+    parser.add_argument('--cfg', default='utils/cfg.yaml', help="Configuration file")
     parser.add_argument('--name', default=None, help="Model name")
     parser.add_argument('--id', default=None, help="Model id")
     parser.add_argument("--cuda", default=0, type=int, help="Select cuda device")
@@ -179,26 +179,26 @@ def get_args():
 
 
 def get_cfg(args):
-    config = read_yaml(args.config)
-    config['TARGET'] = args.target if args.target is not None else config['TARGET']
-    config['NAME'] = args.name if args.name is not None else config['NAME']
-    config['METHOD'] = args.method if args.method is not None else config['METHOD']
-    config['KD']['ALPHA'] = args.alpha if args.alpha is not None else config['KD']['ALPHA']
-    config['KD']['T'] = args.temperature if args.temperature is not None else config['KD']['T']
-    config['WHITEN_LAYERS'] = args.whiten_layers if args.whiten_layers is not None else config['WHITEN_LAYERS']
-    config['ID'] = args.id if args.id is not None else 0
-    config['ERM_TEACHERS'] = True if args.erm_teacher else False
-    config['WEIGHTS'] = args.weights if args.weights is not None else None
-    config['TEST'] = True if args.test else False
-    config['TEACHERS'] = f"{config['NORM']}_{'style' if config['STYLE_AUG'] else 'geom'}" + \
-                         f"{'_wcta' if config['WCTA'] else ''}" + \
-                         f"{'_ema' if config['SMA'] else ''}" if config['TEACHERS'] is None else config['TEACHERS']
-    return config
+    cfg = read_yaml(args.cfg)
+    cfg['TARGET'] = args.target if args.target is not None else cfg['TARGET']
+    cfg['NAME'] = args.name if args.name is not None else cfg['NAME']
+    cfg['METHOD'] = args.method if args.method is not None else cfg['METHOD']
+    cfg['KD']['ALPHA'] = args.alpha if args.alpha is not None else cfg['KD']['ALPHA']
+    cfg['KD']['T'] = args.temperature if args.temperature is not None else cfg['KD']['T']
+    cfg['WHITEN_LAYERS'] = args.whiten_layers if args.whiten_layers is not None else cfg['WHITEN_LAYERS']
+    cfg['ID'] = args.id if args.id is not None else 0
+    cfg['ERM_TEACHERS'] = True if args.erm_teacher else False
+    cfg['WEIGHTS'] = args.weights if args.weights is not None else None
+    cfg['TEST'] = True if args.test else False
+    cfg['TEACHERS'] = f"{cfg['NORM']}_{'style' if cfg['STYLE_AUG'] else 'geom'}" + \
+                         f"{'_wcta' if cfg['WCTA'] else ''}" + \
+                         f"{'_ema' if cfg['SMA'] else ''}" if cfg['TEACHERS'] is None else cfg['TEACHERS']
+    return cfg
 
 def get_args_and_cfg():
     args = get_args()
-    config = get_cfg(args)
-    return args, config
+    cfg = get_cfg(args)
+    return args, cfg
     
 
 # class ValCallback(tf.keras.callbacks.Callback):

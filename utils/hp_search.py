@@ -12,9 +12,9 @@ import gc
 
 class HPSearcher:
       
-    def __init__(self, args, config, logger=None, strategy=None, trial=None):
+    def __init__(self, args, cfg, logger=None, strategy=None, trial=None):
         self.args = args
-        self.config = config
+        self.cfg = cfg
         self.logger = logger
         self.strategy = strategy
         self.trial = trial
@@ -36,50 +36,50 @@ class HPSearcher:
     
     def get_random_hps(self):
 
-        # self.config['KD']['T'] = self.trial.suggest_categorical("T", [2, 3])
-        # self.config['KD']['ALPHA'] = self.trial.suggest_categorical("ALPHA", [0.1, 0.5])
-        # self.config['KD']['FILTER'] = self.trial.suggest_categorical("FILTER", ['error', False])
-        # self.config['KD']['SOUP'] = self.trial.suggest_categorical("SOUP", ['uniform', False])
-        self.config['WCTA'] = self.trial.suggest_categorical("WCTA", [0.0, 0.01])
-        # self.config['STYLE_AUG'] = self.trial.suggest_categorical("STYLE_AUG", [True, False])
-        self.config['KD']['NORM'] = self.trial.suggest_categorical("NORM", ["pre_std", "post_std", "post_norm", "pre_norm"])
-        self.config['TEACHERS'] = self.trial.suggest_categorical("TEACHERS", ["tf_geom", "tf_geom_wcta"])
-        # self.config['TEACHERS'] = f"{self.config['NORM']}_" + \
-        #                           f"{'style' if self.config['STYLE_AUG'] else 'geom'}" + \
-        #                           f"{'_wcta' if self.config['WCTA'] else ''}"
-        # self.config['FWCTA'] = self.trial.suggest_categorical("FWCTA", [True, False])
-        # self.config['WHITEN_LAYERS'] = self.trial.suggest_categorical("WHITEN_LAYERS", [(),(0,0),(0,1),(0,1,2)])
-        # self.config['ADAMW']['LR'] = self.trial.suggest_categorical("LR", [5e-5, 5e-4])
-        # self.config['FREEZE_BACKBONE'] = self.trial.suggest_categorical("FREEZE_BACKBONE", [True, False])        
+        # self.cfg['KD']['T'] = self.trial.suggest_categorical("T", [2, 3])
+        # self.cfg['KD']['ALPHA'] = self.trial.suggest_categorical("ALPHA", [0.1, 0.5])
+        # self.cfg['KD']['FILTER'] = self.trial.suggest_categorical("FILTER", ['error', False])
+        # self.cfg['KD']['SOUP'] = self.trial.suggest_categorical("SOUP", ['uniform', False])
+        self.cfg['WCTA'] = self.trial.suggest_categorical("WCTA", [0.0, 0.01])
+        # self.cfg['STYLE_AUG'] = self.trial.suggest_categorical("STYLE_AUG", [True, False])
+        self.cfg['KD']['NORM'] = self.trial.suggest_categorical("NORM", ["pre_std", "post_std", "post_norm", "pre_norm"])
+        self.cfg['TEACHERS'] = self.trial.suggest_categorical("TEACHERS", ["tf_geom", "tf_geom_wcta"])
+        # self.cfg['TEACHERS'] = f"{self.cfg['NORM']}_" + \
+        #                           f"{'style' if self.cfg['STYLE_AUG'] else 'geom'}" + \
+        #                           f"{'_wcta' if self.cfg['WCTA'] else ''}"
+        # self.cfg['FWCTA'] = self.trial.suggest_categorical("FWCTA", [True, False])
+        # self.cfg['WHITEN_LAYERS'] = self.trial.suggest_categorical("WHITEN_LAYERS", [(),(0,0),(0,1),(0,1,2)])
+        # self.cfg['ADAMW']['LR'] = self.trial.suggest_categorical("LR", [5e-5, 5e-4])
+        # self.cfg['FREEZE_BACKBONE'] = self.trial.suggest_categorical("FREEZE_BACKBONE", [True, False])        
         
-        if self.config['VERBOSE']:
-            self.logger.save_log(self.config[self.config['MODE']])
+        if self.cfg['VERBOSE']:
+            self.logger.save_log(self.cfg[self.cfg['MODE']])
 
-        # print(f"KD={self.config['KD']['T']}, ALPHA={self.config['KD']['ALPHA']}, WCTA={self.config['WCTA']}")
-        # print(f"WCTA={self.config['WCTA']}, SOUP={self.config['KD']['SOUP']}")
-        # print(f"FILTER={self.config['KD']['FILTER']}")
-        # print(f"FWCTA={self.config['FWCTA']}, WHITEN_LAYERS={self.config['WHITEN_LAYERS']}")
-        # print(f"FILTER={self.config['KD']['FILTER']}")
-        print(f"NORM={self.config['KD']['NORM']}, WCTA={self.config['WCTA']}, TEACHERS={self.config['TEACHERS']}")
+        # print(f"KD={self.cfg['KD']['T']}, ALPHA={self.cfg['KD']['ALPHA']}, WCTA={self.cfg['WCTA']}")
+        # print(f"WCTA={self.cfg['WCTA']}, SOUP={self.cfg['KD']['SOUP']}")
+        # print(f"FILTER={self.cfg['KD']['FILTER']}")
+        # print(f"FWCTA={self.cfg['FWCTA']}, WHITEN_LAYERS={self.cfg['WHITEN_LAYERS']}")
+        # print(f"FILTER={self.cfg['KD']['FILTER']}")
+        print(f"NORM={self.cfg['KD']['NORM']}, WCTA={self.cfg['WCTA']}, TEACHERS={self.cfg['TEACHERS']}")
     
     def objective(self, trial):
         name = 'gridsearch_' + str(trial.datetime_start) + str(trial.number)
         self.trial = trial 
-        self.config = get_cfg(self.args)
+        self.cfg = get_cfg(self.args)
         self.get_random_hps()
-        target_domains = self.config['TARGET'] if isinstance(self.config['TARGET'], list) else [self.config['TARGET']]
+        target_domains = self.cfg['TARGET'] if isinstance(self.cfg['TARGET'], list) else [self.cfg['TARGET']]
         metrics = []
         for domain in target_domains:
-            self.config['TARGET'] = domain
-            if self.config['KD']:
-                distiller = Distiller(config=self.config, logger=self.logger, strategy=self.strategy, trial=self.trial)
+            self.cfg['TARGET'] = domain
+            if self.cfg['KD']:
+                distiller = Distiller(cfg=self.cfg, logger=self.logger, strategy=self.strategy, trial=self.trial)
                 metr = distiller.train()
                 #distiller.test()        
                 del distiller.model
                 del distiller.teacher
                 del distiller
             else:
-                trainer = Trainer(config=self.config, logger=self.logger, strategy=self.strategy, trial=self.trial)
+                trainer = Trainer(cfg=self.cfg, logger=self.logger, strategy=self.strategy, trial=self.trial)
                 metr = trainer.train()
                 #trainer.test()
                 del trainer.model
@@ -94,19 +94,19 @@ class HPSearcher:
     
     
     def hp_search(self):
-        name = f'hp_search_{self.config["HP_SEARCH_NAME"]}_{self.config["TARGET"]}'
+        name = f'hp_search_{self.cfg["HP_SEARCH_NAME"]}_{self.cfg["TARGET"]}'
         self.study = optuna.create_study(study_name=name, 
                                          direction='maximize', 
                                          sampler=optuna.samplers.GridSampler(self.search_space),
                                          pruner=optuna.pruners.NopPruner())
         
-        if os.path.exists(f'{self.config["HP_SEARCH_DIR"]}/{name}.pkl'): 
-            study_old = joblib.load(f'{self.config["HP_SEARCH_DIR"]}/{name}.pkl')
+        if os.path.exists(f'{self.cfg["HP_SEARCH_DIR"]}/{name}.pkl'): 
+            study_old = joblib.load(f'{self.cfg["HP_SEARCH_DIR"]}/{name}.pkl')
             self.study.add_trials(study_old.get_trials())
             print('Study resumed!')
         
-        save_callback = SaveCallback(self.config['HP_SEARCH_DIR'])
-        self.study.optimize(lambda trial: self.objective(trial), n_trials=self.config['N_TRIALS'],
+        save_callback = SaveCallback(self.cfg['HP_SEARCH_DIR'])
+        self.study.optimize(lambda trial: self.objective(trial), n_trials=self.cfg['N_TRIALS'],
                             callbacks=[save_callback])
 
         pruned_trials = self.study.get_trials(deepcopy=False, states=[optuna.trial.TrialState.PRUNED])

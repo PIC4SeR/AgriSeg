@@ -136,7 +136,7 @@ def random_resize_crop(x, y, min_p=0.8, input_size=224, seed=None):
     
 # LOAD DATASET
     
-def load_subdataset(root, config):
+def load_subdataset(root, cfg):
     #s = np.random.randint(0,255)
     print(root)
     img_ds = tf.keras.preprocessing.image_dataset_from_directory(
@@ -146,16 +146,16 @@ def load_subdataset(root, config):
         class_names=None,
         color_mode="rgb",
         batch_size=1, # cannot set None in TF 2.6!
-        image_size=(config['IMG_SIZE_TEST'][0], config['IMG_SIZE_TEST'][1]),
+        image_size=(cfg['IMG_SIZE_TEST'][0], cfg['IMG_SIZE_TEST'][1]),
         shuffle=False,
         #seed=s,
         interpolation="bilinear",
         follow_links=False)
     
-    if config['SUBSAMPLE'] and ('zucchini' in str(root)):
+    if cfg['SUBSAMPLE'] and ('zucchini' in str(root)):
         img_ds = img_ds.take(math.ceil(0.25*len(img_ds)))
         
-    if config['NORM'] == 'torch':
+    if cfg['NORM'] == 'torch':
         img_ds = img_ds.map(lambda x: tf.keras.applications.imagenet_utils.preprocess_input(x, mode='torch'))
 
     mask_ds = tf.keras.preprocessing.image_dataset_from_directory(
@@ -165,13 +165,13 @@ def load_subdataset(root, config):
         class_names=None,
         color_mode="grayscale",
         batch_size=1, # cannot set None in TF 2.6!
-        image_size=(config['IMG_SIZE_TEST'][0], config['IMG_SIZE_TEST'][1]),
+        image_size=(cfg['IMG_SIZE_TEST'][0], cfg['IMG_SIZE_TEST'][1]),
         shuffle=False,
         #seed=s,
         interpolation="bilinear",
         follow_links=False)
         
-    if config['SUBSAMPLE'] and ('zucchini' in str(root)):
+    if cfg['SUBSAMPLE'] and ('zucchini' in str(root)):
         mask_ds = mask_ds.take(math.ceil(0.25*len(mask_ds)))
         
     #if 'tree' in str(root):
@@ -182,28 +182,28 @@ def load_subdataset(root, config):
     return tf.data.Dataset.zip((img_ds, mask_ds))
 
 
-def load_dataset(root, config):
+def load_dataset(root, cfg):
     for f in sorted([root.joinpath(d) for d in os.listdir(root) if not d.startswith('.') and not d.endswith('.yaml')]):
         if 'ds' in locals():
-            ds = ds.concatenate(load_subdataset(f, config))
+            ds = ds.concatenate(load_subdataset(f, cfg))
         else:
-            ds = load_subdataset(f, config)
+            ds = load_subdataset(f, cfg)
     return ds
 
 
-def load_multi_dataset(source_dataset, target_dataset, config):
+def load_multi_dataset(source_dataset, target_dataset, cfg):
     if source_dataset is None:
-        return None, load_dataset(target_dataset, config)
+        return None, load_dataset(target_dataset, cfg)
     source_ds = []
     for crop in source_dataset:
-        source_ds.append(load_dataset(crop, config))
+        source_ds.append(load_dataset(crop, cfg))
     try:
-        return source_ds, load_dataset(target_dataset, config)
+        return source_ds, load_dataset(target_dataset, cfg)
     except:
         return source_ds, None
     
     
-def split_data(ds_source, ds_target, config):
+def split_data(ds_source, ds_target, cfg):
     if ds_target:
         d_len = len(ds_target)
         ds_test = ds_target.unbatch()
@@ -215,12 +215,12 @@ def split_data(ds_source, ds_target, config):
         len_tra, len_val = 0, 0
         for d in ds_source:
             d_len = len(d)
-            val_len = int(math.floor(d_len * config['SPLIT_SIZE']))
+            val_len = int(math.floor(d_len * cfg['SPLIT_SIZE']))
             train_len = d_len - val_len
             len_tra += train_len
             len_val += val_len
             d = d.unbatch()
-            d = d.shuffle(d_len, seed=config['SEED'] if config['SEED'] else None)
+            d = d.shuffle(d_len, seed=cfg['SEED'] if cfg['SEED'] else None)
             
             ds_val.append(d.take(val_len))
             ds_train.append(d.skip(val_len))
@@ -239,15 +239,15 @@ def split_data(ds_source, ds_target, config):
         
         for d in ds_source:
             ds_len = len(d)
-            test_len = math.floor(ds_len * config['SPLIT_SIZE'])
-            val_len = math.floor(ds_len * config['SPLIT_SIZE'] * (1 - config['SPLIT_SIZE']))
+            test_len = math.floor(ds_len * cfg['SPLIT_SIZE'])
+            val_len = math.floor(ds_len * cfg['SPLIT_SIZE'] * (1 - cfg['SPLIT_SIZE']))
             train_len = ds_len - test_len - val_len
             len_tra += train_len
             len_tes += test_len
             len_val += val_len
             
             d = d.unbatch()
-            d = d.shuffle(ds_len, seed=config['SEED'] if config['SEED'] else None)
+            d = d.shuffle(ds_len, seed=cfg['SEED'] if cfg['SEED'] else None)
             
             ds_test.append(d.take(test_len))
             d_train = d.skip(test_len)

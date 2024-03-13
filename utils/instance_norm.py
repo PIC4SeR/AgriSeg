@@ -171,8 +171,8 @@ class WCTA(tf.keras.layers.Layer):
         trg_transformed = tf.transpose(trg_transformed, [0, 2, 3, 1])
         return trg_transformed
 
-    def get_config(self):
-        cfg = super().get_config()
+    def getcfg(self):
+        cfg = super().get_cfg()
         return cfg 
     
 
@@ -245,7 +245,7 @@ class CovMatrix_ISW(tf.keras.layers.Layer):
         self.var_matrix = None
         self.count_var_cov = 0
 
-        if not tf.config.experimental.list_physical_devices('GPU'):
+        if not tf.cfg.experimental.list_physical_devices('GPU'):
             print("Covariance Info: (CXC Shape, Num_Off_Diagonal)", self.mask_matrix.shape, self.num_off_diagonal)
             print("Selective (Sensitive Covariance)", self.num_sensitive)
 
@@ -413,8 +413,8 @@ class InstanceNorm(nn.Layer):
         outputs = tf.reshape(normalized_inputs, tensor_input_shape)
         return outputs
 
-    def get_config(self):
-        config = {
+    def get_cfg(self):
+        cfg = {
             "groups": self.groups,
             "axis": self.axis,
             "epsilon": self.epsilon,
@@ -427,8 +427,8 @@ class InstanceNorm(nn.Layer):
             "beta_constraint": tf.keras.constraints.serialize(self.beta_constraint),
             "gamma_constraint": tf.keras.constraints.serialize(self.gamma_constraint)
         }
-        base_config = super(InstanceNorm, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
+        base_cfg = super(InstanceNorm, self).get_cfg()
+        return dict(list(base_cfg.items()) + list(cfg.items()))
 
     def compute_output_shape(self, input_shape):
         return input_shape

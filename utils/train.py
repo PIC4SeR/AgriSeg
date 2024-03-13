@@ -31,27 +31,27 @@ from utils.xded import pixelwise_XDEDLoss
 
 class Trainer:  
     
-    def __init__(self, config, logger, strategy=None, trial=None, test=False):
+    def __init__(self, cfg, logger, strategy=None, trial=None, test=False):
 
-        self.config = config
+        self.cfg = cfg
         self.logger = logger
         self.strategy = strategy
         self.trial = trial
-        self.seed=self.config['SEED'] if self.config['SEED'] else None
+        self.seed=self.cfg['SEED'] if self.cfg['SEED'] else None
         
         # define paths and names
-        self.model_name = f"{config['NAME']}_{config['TARGET']}_{config['METHOD']}"
-        self.model_dir = Path(config['MODEL_PATH'])
-        self.log_dir = Path(config['LOG_PATH'])
-        self.data_dir = Path(config['DATA_PATH'])
-        tb_name = f"{self.model_name}_{self.config['ID']}_{datetime.datetime.now().strftime('%m_%d_%H_%M')}"
+        self.model_name = f"{cfg['NAME']}_{cfg['TARGET']}_{cfg['METHOD']}"
+        self.model_dir = Path(cfg['MODEL_PATH'])
+        self.log_dir = Path(cfg['LOG_PATH'])
+        self.data_dir = Path(cfg['DATA_PATH'])
+        tb_name = f"{self.model_name}_{self.cfg['ID']}_{datetime.datetime.now().strftime('%m_%d_%H_%M')}"
         self.tb_dir = self.log_dir.joinpath("tb").joinpath(tb_name)
 
         self.model_file = self.model_dir.joinpath(f"{tb_name}.h5")
         self.log_file = self.log_dir.joinpath(f"{self.model_name}.txt")
-        #save_log(config, self.log_file)
+        #save_log(cfg, self.log_file)
 
-        self.get_data(test_only=config['TEST'] or test)
+        self.get_data(test_only=cfg['TEST'] or test)
         
         if self.strategy:
             with self.strategy.scope():
@@ -63,7 +63,7 @@ class Trainer:
         self.get_callbacks()
     
         self.cov_matrix_layer = None
-        if config['METHOD'] == 'ISW':
+        if cfg['METHOD'] == 'ISW':
             self.whitening = True
             in_channel_list = [16, 16] #[16, 16, 24]
             self.cov_matrix_layer = []
@@ -93,47 +93,47 @@ class Trainer:
     def get_data(self, test_only=False):
         
         # load dataset
-        target_dataset = self.data_dir.joinpath(self.config['TARGET'])
+        target_dataset = self.data_dir.joinpath(self.cfg['TARGET'])
         
         if test_only:
             source_dataset = None
             
-        elif not self.config['DG']:
+        elif not self.cfg['DG']:
             source_dataset = [target_dataset]
             target_dataset = None
             
         else:        
             source_dataset = sorted([self.data_dir.joinpath(d) 
-                                     for d in self.config['SOURCE'] if d != self.config['TARGET']])
+                                     for d in self.cfg['SOURCE'] if d != self.cfg['TARGET']])
         
 
         with redirect_stdout(trap):
-            ds_source, ds_target = load_multi_dataset(source_dataset, target_dataset, self.config)
+            ds_source, ds_target = load_multi_dataset(source_dataset, target_dataset, self.cfg)
 
-        self.ds_train, self.ds_val, self.ds_test = split_data(ds_source, ds_target, self.config)
+        self.ds_train, self.ds_val, self.ds_test = split_data(ds_source, ds_target, self.cfg)
         
         # build dataset
         if self.ds_train is not None:
             self.train_len = len(self.ds_train)
             self.ds_train = self.ds_train.cache()
             self.ds_train = self.ds_train.shuffle(self.train_len, seed=self.seed)
-            self.ds_train = self.ds_train.map(lambda x, y: random_flip(x, y, p=self.config['RND_FLIP'], seed=self.seed),
+            self.ds_train = self.ds_train.map(lambda x, y: random_flip(x, y, p=self.cfg['RND_FLIP'], seed=self.seed),
                                               tf.data.experimental.AUTOTUNE)
-            self.ds_train = self.ds_train.map(lambda x, y: random_resize_crop(x, y, min_p=self.config['RND_CROP'],
+            self.ds_train = self.ds_train.map(lambda x, y: random_resize_crop(x, y, min_p=self.cfg['RND_CROP'],
                                                                               seed=self.seed),
                                               tf.data.experimental.AUTOTUNE)
-            if self.config['STYLE_AUG']:
-                self.ds_train = self.ds_train.map(lambda x, y: random_jitter(x, y, p=self.config['RND_JITTER'], 
-                                                                             r=self.config['RND_JITTER_RNG'], 
+            if self.cfg['STYLE_AUG']:
+                self.ds_train = self.ds_train.map(lambda x, y: random_jitter(x, y, p=self.cfg['RND_JITTER'], 
+                                                                             r=self.cfg['RND_JITTER_RNG'], 
                                                                              seed=self.seed),
                                                   tf.data.experimental.AUTOTUNE)
-                self.ds_train = self.ds_train.map(lambda x, y: random_grayscale(x, y, p=self.config['RND_GREY'],
+                self.ds_train = self.ds_train.map(lambda x, y: random_grayscale(x, y, p=self.cfg['RND_GREY'],
                                                                                 seed=self.seed),
                                                   tf.data.experimental.AUTOTUNE)
-            if self.config['ZCA']:
+            if self.cfg['ZCA']:
                 self.ds_train = self.ds_train.map(lambda x, y: zca_whitening(x, y), tf.data.experimental.AUTOTUNE)
             
-            self.ds_train = self.ds_train.batch(self.config['BATCH_SIZE'], drop_remainder=True)
+            self.ds_train = self.ds_train.batch(self.cfg['BATCH_SIZE'], drop_remainder=True)
             self.ds_train = self.ds_train.prefetch(tf.data.experimental.AUTOTUNE)
             self.ds_train = self.strategy.experimental_distribute_dataset(self.ds_train) if self.strategy else self.ds_train
         else: 
@@ -142,7 +142,7 @@ class Trainer:
         if self.ds_val is not None:
             self.val_len = len(self.ds_val)
             self.ds_val = self.ds_val.cache()
-            self.ds_val = self.ds_val.batch(self.config['BATCH_SIZE'], drop_remainder=False)
+            self.ds_val = self.ds_val.batch(self.cfg['BATCH_SIZE'], drop_remainder=False)
             self.ds_val = self.ds_val.prefetch(tf.data.experimental.AUTOTUNE)
             self.ds_val = self.strategy.experimental_distribute_dataset(self.ds_val) if self.strategy else self.ds_val
         else: 
@@ -152,7 +152,7 @@ class Trainer:
             self.test_len = len(self.ds_test)
             self.ds_test = self.ds_test.cache()
             # self.ds_test = self.ds_test.shuffle(self.test_len, seed=self.seed)
-            self.ds_test = self.ds_test.batch(self.config['BATCH_SIZE'], drop_remainder=False)
+            self.ds_test = self.ds_test.batch(self.cfg['BATCH_SIZE'], drop_remainder=False)
             self.ds_test = self.ds_test.prefetch(tf.data.experimental.AUTOTUNE)
             self.ds_test = self.strategy.experimental_distribute_dataset(self.ds_test) if self.strategy else self.ds_test
         else: 
@@ -167,50 +167,50 @@ class Trainer:
     
     
     def get_model(self):    
-        if self.config['UNISTYLE'] and self.config['METHOD'] in ['ISW','XDED','IBN','KD']:
-            whiten_layers = self.config['WHITEN_LAYERS'] 
+        if self.cfg['UNISTYLE'] and self.cfg['METHOD'] in ['ISW','XDED','IBN','KD']:
+            whiten_layers = self.cfg['WHITEN_LAYERS'] 
         else:
             whiten_layers = [],
         # load pretrained model
-        backbone = MobileNetV3Large(input_shape=(self.config['IMG_SIZE'], self.config['IMG_SIZE'], 3),
+        backbone = MobileNetV3Large(input_shape=(self.cfg['IMG_SIZE'], self.cfg['IMG_SIZE'], 3),
                                     alpha=1.0,
                                     minimalistic=False,
                                     include_top=False,
                                     weights='imagenet',
                                     input_tensor=None,
-                                    classes=self.config['N_CLASSES'],
+                                    classes=self.cfg['N_CLASSES'],
                                     pooling='avg',
                                     dropout_rate=False,
-                                    include_preprocessing=self.config['NORM']=='tf',
-                                    mode=self.config['METHOD'], 
-                                    p=self.config['PADAIN']['P'],
-                                    eps=float(self.config['PADAIN']['EPS']),
+                                    include_preprocessing=self.cfg['NORM']=='tf',
+                                    mode=self.cfg['METHOD'], 
+                                    p=self.cfg['PADAIN']['P'],
+                                    eps=float(self.cfg['PADAIN']['EPS']),
                                     whiten_layers=whiten_layers,
-                                    wcta=self.config['WCTA'], 
+                                    wcta=self.cfg['WCTA'], 
                                     backend=tf.keras.backend, layers=tf.keras.layers, models=tf.keras.models, 
                                     utils=tf.keras.utils)
 
-        if self.config['CITYSCAPES']:
+        if self.cfg['CITYSCAPES']:
             pre_trained_model = build_model_multi(backbone, False, 20)
             pre_trained_model.load_weights(self.model_dir.joinpath('lr_aspp_pretrain_cityscapes.h5'))
         else:
             pre_trained_model = backbone
             
-        if self.config['FREEZE_BACKBONE']:
+        if self.cfg['FREEZE_BACKBONE']:
             pre_trained_model.trainable = False
 
         # binary segmentation model
         self.model = build_model_binary(base_model=pre_trained_model, 
                                         dropout_rate=False, 
-                                        n_class=self.config['N_CLASSES'], 
-                                        sigmoid=self.config['LOSS']=='iou', 
-                                        mode=self.config['METHOD'],
-                                        p=self.config['PADAIN']['P'], 
-                                        fwcta=self.config['FWCTA'],
-                                        eps=float(self.config['PADAIN']['EPS']))
+                                        n_class=self.cfg['N_CLASSES'], 
+                                        sigmoid=self.cfg['LOSS']=='iou', 
+                                        mode=self.cfg['METHOD'],
+                                        p=self.cfg['PADAIN']['P'], 
+                                        fwcta=self.cfg['FWCTA'],
+                                        eps=float(self.cfg['PADAIN']['EPS']))
 
-        if self.config['WEIGHTS'] is not None:
-            self.model.load_weights(self.config['WEIGHTS'])
+        if self.cfg['WEIGHTS'] is not None:
+            self.model.load_weights(self.cfg['WEIGHTS'])
         
         del pre_trained_model
         del backbone
@@ -218,7 +218,7 @@ class Trainer:
             
     def get_optimizer(self):
 
-        self.n_steps = self.config['N_EPOCHS'] * (self.train_len) // self.config['BATCH_SIZE']
+        self.n_steps = self.cfg['N_EPOCHS'] * (self.train_len) // self.cfg['BATCH_SIZE']
         
         if self.strategy:
             with self.strategy.scope():
@@ -226,7 +226,7 @@ class Trainer:
         else:
             self.get_opt_loss()
             
-        self.metric = mIoU if self.config['METRIC'] == 'iou' else mIoU_old
+        self.metric = mIoU if self.cfg['METRIC'] == 'iou' else mIoU_old
 
         self.train_loss_mean, self.train_metr_mean = tf.keras.metrics.Mean(), tf.keras.metrics.Mean()
         self.train_aux_mean = tf.keras.metrics.Mean()
@@ -238,46 +238,46 @@ class Trainer:
         
     def get_opt_loss(self):
         
-        if self.config['OPTIMIZER'] == 'adamw':
+        if self.cfg['OPTIMIZER'] == 'adamw':
             lr_sched = tf.keras.optimizers.schedules.PolynomialDecay(
-                           initial_learning_rate=float(self.config['ADAMW']['LR']), 
+                           initial_learning_rate=float(self.cfg['ADAMW']['LR']), 
                            decay_steps=self.n_steps, 
-                           end_learning_rate=float(self.config['ADAMW']['LR_END']), 
-                           power=self.config['ADAMW']['DECAY'])
+                           end_learning_rate=float(self.cfg['ADAMW']['LR_END']), 
+                           power=self.cfg['ADAMW']['DECAY'])
             
-            self.optim = tf.optimizers.AdamW(learning_rate=lr_sched, weight_decay=float(self.config['ADAMW']['WD']))
+            self.optim = tf.optimizers.AdamW(learning_rate=lr_sched, weight_decay=float(self.cfg['ADAMW']['WD']))
             
-        elif self.config['OPTIMIZER'] == 'sgd':
+        elif self.cfg['OPTIMIZER'] == 'sgd':
             lr_sched = tf.keras.optimizers.schedules.ExponentialDecay(
-                           float(self.config['SGD']['LR']),
+                           float(self.cfg['SGD']['LR']),
                            decay_steps=self.n_steps,
-                           decay_rate=self.config['SGD']['DECAY'],
+                           decay_rate=self.cfg['SGD']['DECAY'],
                            staircase=False)
             
-            self.optim = tf.keras.optimizers.SGD(learning_rate=lr_sched, momentum=self.config['SGD']['MOMENTUM'],
-                                                 nesterov=self.config['SGD']['NESTEROV'])
+            self.optim = tf.keras.optimizers.SGD(learning_rate=lr_sched, momentum=self.cfg['SGD']['MOMENTUM'],
+                                                 nesterov=self.cfg['SGD']['NESTEROV'])
             
-        elif self.config['OPTIMIZER'] == 'adam':
-            self.optim = tf.keras.optimizers.Adam(learning_rate=float(self.config['ADAM']['LR']))
+        elif self.cfg['OPTIMIZER'] == 'adam':
+            self.optim = tf.keras.optimizers.Adam(learning_rate=float(self.cfg['ADAM']['LR']))
 
-        if self.config['SMA']:
+        if self.cfg['SMA']:
             self.ema = EMA(self.model, 0.999)
             self.ema.register()
             
-        if self.config['LOSS'] == 'bce':
+        if self.cfg['LOSS'] == 'bce':
             self.loss = tf.losses.BinaryCrossentropy(from_logits=True, reduction=tf.keras.losses.Reduction.NONE)
             #self.loss = binary_weighted_cross_entropy(from_logits=True)
             
-        elif self.config['LOSS'] == 'iou':
+        elif self.cfg['LOSS'] == 'iou':
             self.loss = loss_IoU
 
             
-        if self.config['AUX_LOSS']:
-            self.aux_loss = ContrastiveLoss(self.config['BATCH_SIZE']//2, weight=self.config['CL']['WEIGHT'], 
-                                            temperature=self.config['CL']['TEMP'])
+        if self.cfg['AUX_LOSS']:
+            self.aux_loss = ContrastiveLoss(self.cfg['BATCH_SIZE']//2, weight=self.cfg['CL']['WEIGHT'], 
+                                            temperature=self.cfg['CL']['TEMP'])
             
-        if self.config['METHOD'] == 'XDED':
-            self.xded = pixelwise_XDEDLoss(temp_factor=self.config['XDED']['T'])
+        if self.cfg['METHOD'] == 'XDED':
+            self.xded = pixelwise_XDEDLoss(temp_factor=self.cfg['XDED']['T'])
 
         
     def get_callbacks(self):
@@ -295,7 +295,7 @@ class Trainer:
         best_metr , best_test_metr, btm = 0, 0, 0
         now = time.perf_counter()
         
-        for epoch in range(self.config['N_EPOCHS']):
+        for epoch in range(self.cfg['N_EPOCHS']):
             # self.model.trainable = True
             for step, (x, y) in enumerate(self.ds_train, 1):
                 self.step = step
@@ -304,14 +304,14 @@ class Trainer:
                 else:
                     train_loss, train_aux, train_metr, self.cov_matrix_layer = self.distributed_train_step(x, y, self.cov_matrix_layer)
 
-                if self.config['SMA']:
+                if self.cfg['SMA']:
                     self.ema.update()
 
                 self.train_loss_mean(tf.reduce_sum(train_loss))
                 self.train_aux_mean(tf.reduce_sum(train_aux))
                 self.train_metr_mean(tf.reduce_mean(train_metr))
 
-                if self.config['NAME'] == 'test' and step > 50:
+                if self.cfg['NAME'] == 'test' and step > 50:
                     break
             
             train_loss = self.train_loss_mean.result()
@@ -321,7 +321,7 @@ class Trainer:
             self.train_aux_mean.reset_states()
             self.train_metr_mean.reset_states()
 
-            if self.config['SMA']:
+            if self.cfg['SMA']:
                 self.ema.apply_shadow()
 
             val_loss, val_metr = self.evaluate(self.ds_val, split='val')
@@ -342,7 +342,7 @@ class Trainer:
                 best_metr_epoch = epoch
                 self.model.save_weights(self.model_file)
             
-            if self.config['SMA']:
+            if self.cfg['SMA']:
                 self.ema.restore()
 
             if test_metr >= btm:
@@ -376,14 +376,14 @@ class Trainer:
         
             now = time.perf_counter()
 
-            if self.config['NAME'] == 'test':
+            if self.cfg['NAME'] == 'test':
                 break
         
         out = f'Best Val {best_metr:.4f} Test {best_test_metr:.4f} ({best_metr_epoch}) | '
         out += f'Val {btv:.4f} Best Test {btm:.4f} ({bte})'
         self.logger.save_log(out)
         
-        return best_test_metr if self.config['SAVE_BEST'] else test_metr
+        return best_test_metr if self.cfg['SAVE_BEST'] else test_metr
         
         
         
@@ -395,16 +395,16 @@ class Trainer:
             pred, *feat = self.model(x, training=True)
             #print(y, pred)
             
-            aux_loss = tf.zeros((self.config['BATCH_SIZE'],))
+            aux_loss = tf.zeros((self.cfg['BATCH_SIZE'],))
             
-            if self.config['AUX_LOSS']:
+            if self.cfg['AUX_LOSS']:
                 _, feat_b = self.model(x, training=False)
                 aux_loss = self.aux_loss(feat_b, feat)
                 
-            if self.config['METHOD'] == 'XDED':
-                aux_loss = self.xded(pred, y) * self.config['XDED']['ALPHA']
+            if self.cfg['METHOD'] == 'XDED':
+                aux_loss = self.xded(pred, y) * self.cfg['XDED']['ALPHA']
                
-            elif self.config['METHOD'] == 'ISW':
+            elif self.cfg['METHOD'] == 'ISW':
                 feat_array = tf.TensorArray(tf.float32, len(feat), infer_shape=False, clear_after_read=False)
                 for i, f in enumerate(feat):
                     feat_array = feat_array.write(i,f)
@@ -427,7 +427,7 @@ class Trainer:
                     else:
                         eye, mask_matrix, margin, num_remove_cov = self.cov_matrix_layer[index].get_mask_matrix()
                         loss = instance_whitening_loss(feat_array.read(index), eye, mask_matrix, margin, num_remove_cov)
-                        aux_loss = aux_loss + loss * self.config['ISW']['ALPHA']
+                        aux_loss = aux_loss + loss * self.cfg['ISW']['ALPHA']
                         
                 aux_loss = aux_loss / tf.cast(len(cov_matrix_layer), tf.float32)
 
@@ -456,7 +456,7 @@ class Trainer:
     def compute_loss(self, labels, predictions, model_losses=None):
         loss = self.loss(labels, predictions)
         loss = tf.reduce_mean(loss)
-        #loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=self.config['BATCH_SIZE'])
+        #loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=self.cfg['BATCH_SIZE'])
         if model_losses:
             loss += tf.nn.scale_regularization_loss(tf.add_n(model_losses))
         return loss
@@ -465,7 +465,7 @@ class Trainer:
     @tf.function        
     def compute_metric(self, labels, predictions):
         per_example_metr = self.metric(labels, predictions)
-        #metr = tf.nn.compute_average_loss(per_example_metr, global_batch_size=self.config['BATCH_SIZE'])
+        #metr = tf.nn.compute_average_loss(per_example_metr, global_batch_size=self.cfg['BATCH_SIZE'])
         return per_example_metr
     
         
@@ -477,9 +477,9 @@ class Trainer:
 #         with self.strategy.scope():
 #             self.model.load_weights(self.model_file)
         
-#         val_loss, val_miou = self.model.evaluate(self.ds_val, steps=self.val_len//self.config['BATCH_SIZE'],
+#         val_loss, val_miou = self.model.evaluate(self.ds_val, steps=self.val_len//self.cfg['BATCH_SIZE'],
 #                                                  workers=8, use_multiprocessing=True, verbose=2)
-        test_loss, test_miou = self.model.evaluate(self.ds_test, steps=self.test_len//self.config['BATCH_SIZE'],
+        test_loss, test_miou = self.model.evaluate(self.ds_test, steps=self.test_len//self.cfg['BATCH_SIZE'],
                                                    workers=24, use_multiprocessing=True, verbose=2)
 #         save_log(f"Val Loss and mIoU: {val_loss} {val_miou}", self.log_file)
         save_log(f"Test Loss and mIoU: {test_loss} {test_miou}", self.log_file)
@@ -513,7 +513,7 @@ class Trainer:
         #pred = tf.math.sigmoid(pred)
         out_loss = self.compute_loss(y, pred)
         # aux_loss = self.aux_loss(y, pred)
-        loss = out_loss # + self.config[self.config['MODE']]['ALPHA'] * aux_loss
+        loss = out_loss # + self.cfg[self.cfg['MODE']]['ALPHA'] * aux_loss
         
         metr = self.compute_metric(y, pred)
         
