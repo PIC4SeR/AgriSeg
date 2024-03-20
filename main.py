@@ -24,12 +24,12 @@ def main():
     args, cfg = get_args_and_cfg()
     #select the working GPU
     if cfg['NAME'] == 'test' or cfg['METHOD'] == 'ISW':
-        tf.cfg.run_functions_eagerly(True)
-    gpus = tf.cfg.experimental.list_physical_devices('GPU')
-    tf.cfg.experimental.set_visible_devices(gpus[args.cuda], 'GPU')
+        tf.config.run_functions_eagerly(True)
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    tf.config.experimental.set_visible_devices(gpus[args.cuda], 'GPU')
     devices = []
     for g in [args.cuda]:
-        tf.cfg.experimental.set_memory_growth(gpus[g], True)
+        tf.config.experimental.set_memory_growth(gpus[g], True)
         devices.append(f'GPU:{g}')
     
     if len(cfg['GPU']) > 1:
@@ -43,7 +43,7 @@ def main():
     if cfg['SEED']:
         #seed_everything(cfg['SEED'])
         tf.keras.utils.set_random_seed(cfg['SEED'])  # sets seeds for base-python, numpy and tf
-        tf.cfg.experimental.enable_op_determinism()
+        tf.config.experimental.enable_op_determinism()
     if cfg['HP_SEARCH']:
         searcher = HPSearcher(args=args, cfg=cfg, logger=logger, strategy=strategy, trial=None)
         searcher.hp_search()
@@ -51,7 +51,7 @@ def main():
     elif cfg['METHOD'] in ['KD']:
         distiller = Distiller(cfg, logger, strategy)
         if cfg['TEST']:
-            test_loss, test_metr = distiller.evaluate(trainer.ds_test, "test")
+            test_loss, test_metr = distiller.evaluate(distiller.ds_test, "test")
             print(f"Test loss: {test_loss}, Test mIoU: {test_metr}")
         else:
             distiller.train()

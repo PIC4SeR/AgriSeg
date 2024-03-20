@@ -1,16 +1,6 @@
 #!/bin/bash
-    
-domains="vineyard"
-meth="KD"
-name="ema_2"
-
-for i in 2 3 4 5; do # Multiple runs
-    for target in $domains; do # Iterate on domains
-        date
-        echo "Training: name=$name, meth=$meth, target=$target, id=$i"
-        python3 main.py --target $target --id $i --cfg cfg/cfg_1.yaml --name $name --method $meth --cuda 6 2>&1 | tee logs/${name}_$i.log
-    done
-done
+date
+python3 main.py --id 0 --cfg cfg/cfg_3.yaml --method KD --cuda 6 >> logs/bench.log
 
 # ERM Teachers
 #for target in $domains; do # Iterate on domains

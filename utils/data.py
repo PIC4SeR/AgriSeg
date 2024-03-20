@@ -49,7 +49,13 @@ def load_and_resize_segmentation(path, IMG_SIZE):  # read segmentation (class la
     return seg
 
 def binarize_mask(mask):
-    return tf.clip_by_value(mask, 0, 1)
+    return tf.cast(tf.clip_by_value(mask, 0, 1), tf.float32)
+
+def binarize_freiburg(mask):
+    mask_1 = tf.cast(tf.where(mask == 35, 1, 0), tf.bool)
+    mask_2 = tf.cast(tf.where(mask == 96, 1, 0), tf.bool)
+    mask_3 = tf.cast(tf.where(mask == 149, 1, 0), tf.bool)
+    return tf.cast(tf.logical_or(tf.logical_or(mask_1, mask_2), mask_3), tf.uint8)
 
 def normalize(img):
     return img / 255.0
@@ -146,7 +152,7 @@ def zca_whitening(x, y, epsilon=1e-5):
     
 # LOAD DATASET
     
-def load_subdataset(root, cfg):
+def load_subdataset(root, cfg, test=False):
     #s = np.random.randint(0,255)
     print(root)
     img_ds = tf.keras.preprocessing.image_dataset_from_directory(
@@ -156,7 +162,7 @@ def load_subdataset(root, cfg):
         class_names=None,
         color_mode="rgb",
         batch_size=1, # cannot set None in TF 2.6!
-        image_size=(cfg['IMG_SIZE'], cfg['IMG_SIZE']),
+        image_size=(cfg['IMG_SIZE'], cfg['IMG_SIZE']) if not test else cfg['IMG_SIZE_TEST'],
         shuffle=False,
         #seed=s,
         interpolation="bilinear",
@@ -175,40 +181,40 @@ def load_subdataset(root, cfg):
         class_names=None,
         color_mode="grayscale",
         batch_size=1, # cannot set None in TF 2.6!
-        image_size=(cfg['IMG_SIZE'], cfg['IMG_SIZE']),
+        image_size=(cfg['IMG_SIZE'], cfg['IMG_SIZE']) if not test else cfg['IMG_SIZE_TEST'],
         shuffle=False,
         #seed=s,
-        interpolation="bilinear",
+        interpolation="nearest",
         follow_links=False)
         
     if cfg['SUBSAMPLE'] and ('zucchini' in str(root)):
         mask_ds = mask_ds.take(math.ceil(0.25*len(mask_ds)))
         
-    #if 'tree' in str(root):
-    mask_ds = mask_ds.map(binarize_mask)
-    #else:
-    #    mask_ds = mask_ds.map(normalize)
+    if 'freiburg' in str(root):
+        mask_ds = mask_ds.map(binarize_freiburg)
+    else:
+        mask_ds = mask_ds.map(binarize_mask)
 
     return tf.data.Dataset.zip((img_ds, mask_ds))
 
 
-def load_dataset(root, cfg):
+def load_dataset(root, cfg, test=False):
     for f in sorted([root.joinpath(d) for d in os.listdir(root) if not d.startswith('.') and not d.endswith('.yaml')]):
         if 'ds' in locals():
-            ds = ds.concatenate(load_subdataset(f, cfg))
+            ds = ds.concatenate(load_subdataset(f, cfg, test=test))
         else:
-            ds = load_subdataset(f, cfg)
+            ds = load_subdataset(f, cfg, test=test)
     return ds
 
 
 def load_multi_dataset(source_dataset, target_dataset, cfg):
     if source_dataset is None:
-        return None, load_dataset(target_dataset, cfg)
+        return None, load_dataset(target_dataset, cfg, test=True)
     source_ds = []
     for crop in source_dataset:
         source_ds.append(load_dataset(crop, cfg))
     try:
-        return source_ds, load_dataset(target_dataset, cfg)
+        return source_ds, load_dataset(target_dataset, cfg, test=True)
     except:
         return source_ds, None
     

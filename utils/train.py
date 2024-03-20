@@ -145,7 +145,7 @@ class Trainer:
             self.ds_val = self.ds_val.batch(self.cfg['BATCH_SIZE'], drop_remainder=False)
             self.ds_val = self.ds_val.prefetch(tf.data.experimental.AUTOTUNE)
             self.ds_val = self.strategy.experimental_distribute_dataset(self.ds_val) if self.strategy else self.ds_val
-        else: 
+        else:
             self.val_len = 0
 
         if self.ds_test is not None:
@@ -311,8 +311,8 @@ class Trainer:
                 self.train_aux_mean(tf.reduce_sum(train_aux))
                 self.train_metr_mean(tf.reduce_mean(train_metr))
 
-                if self.cfg['NAME'] == 'test' and step > 50:
-                    break
+                # if self.cfg['NAME'] == 'test' and step > 50:
+                #     break
             
             train_loss = self.train_loss_mean.result()
             train_aux = self.train_aux_mean.result()
@@ -470,7 +470,6 @@ class Trainer:
     
         
     def test(self):
-        
         self.model.trainable = False
 
         # test the model

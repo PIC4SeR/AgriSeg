@@ -8,15 +8,15 @@ NAME: null
 SAVE_BEST: True
 
 HP_SEARCH: False
-HP_SEARCH_NAME: 'hp_norm'
+HP_SEARCH_NAME: ''
 HP_SEARCH_DIR: 'trials'
-N_TRIALS: 9
+N_TRIALS: 8
 
 CITYSCAPES: False
 
 # DG methodology
 DG: True
-METHOD: 'KD'
+METHOD: null
 PADAIN:
     P: 0.001
     EPS: 1e-5
@@ -66,8 +66,8 @@ KD:
     ENSEMBLE: 'mean'
     LOSS: 'kld' # 'kld' or 'mse' or 'mae' or 'logsum' or 'old'
     FILTER: False
-    NORM: True
-    
+    NORM: False
+    WEIGHT: 'iou'
 CL:
     TEMP: 0.5
     WEIGHT: 0.0

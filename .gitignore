@@ -6,3 +6,5 @@ datasets/
 trials/
 demo/
 .vscode/
+VegAnn_dataset/
+freiburg/

@@ -41,7 +41,7 @@ def mIoU_old(y_true, y_pred):
     return tf.math.divide(inter,union)
 
 #metric
-def mIoU(y_true, y_pred):
+def mIoU(y_true, y_pred, reduce=True):
     if len(y_pred.shape) != len(y_true.shape):
         #y_true = y_true[...,None]
         y_pred = y_pred[...,0]
@@ -54,10 +54,16 @@ def mIoU(y_true, y_pred):
     
 
     intersection_tensor=tf.math.multiply(y_true,y_pred_threshold)
-    inter=tf.reduce_sum(intersection_tensor)
-    
-    #union= a+b-intersection
-    union=tf.reduce_sum(tf.math.subtract(tf.math.add(y_true,y_pred_threshold),intersection_tensor))
+    ############################################################# make it per-batch
+    if reduce:
+        inter=tf.reduce_sum(intersection_tensor)
+        #union= a+b-intersection
+        union=tf.reduce_sum(tf.math.subtract(tf.math.add(y_true,y_pred_threshold),intersection_tensor))
+    else:
+        # keep batch dimension
+        inter=tf.reduce_sum(intersection_tensor, axis=(1,2))
+        #union= a+b-intersection
+        union=tf.reduce_sum(tf.math.subtract(tf.math.add(y_true,y_pred_threshold),intersection_tensor), axis=(1,2))
     
     
     return tf.math.divide(inter,union)

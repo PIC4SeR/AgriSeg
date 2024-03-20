@@ -245,7 +245,7 @@ class CovMatrix_ISW(tf.keras.layers.Layer):
         self.var_matrix = None
         self.count_var_cov = 0
 
-        if not tf.cfg.experimental.list_physical_devices('GPU'):
+        if not tf.config.experimental.list_physical_devices('GPU'):
             print("Covariance Info: (CXC Shape, Num_Off_Diagonal)", self.mask_matrix.shape, self.num_off_diagonal)
             print("Selective (Sensitive Covariance)", self.num_sensitive)
 

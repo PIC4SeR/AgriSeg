@@ -37,14 +37,14 @@ class Distiller(Trainer):
         tb_name = f"{self.cfg['TARGET']}_{self.cfg['ID']}_{datetime.datetime.now().strftime('%m_%d_%H_%M')}"
         self.tb_dir = self.log_dir.joinpath("tb").joinpath(tb_name)
 
-        self.seed=self.cfg['SEED'] if self.cfg['SEED'] else None
+        self.seed = self.cfg['SEED'] if self.cfg['SEED'] else None
 
         self.model_file = self.model_dir.joinpath(f"{self.model_name}_{self.cfg['ID']}.h5")
         self.log_file = self.log_dir.joinpath(f"{self.model_name}.txt")
         save_log(cfg, self.log_file)
 
-        self.get_data(test_only=test)
-        if not test:
+        self.get_data(test_only=cfg['TEST'] or test)
+        if not (cfg['TEST'] and test):
             self.get_teacher()
         else:
             self.model = None
@@ -196,7 +196,7 @@ class Distiller(Trainer):
             elif self.cfg['METHOD'] in ['KD']: 
                 pred_t = self.teacher(x, training=False)  
                 if self.cfg['KD']['ENSEMBLE'] == 'mean':
-                    if 'pre' in self.cfg['KD']['NORM']:
+                    if self.cfg['KD']['NORM'] and 'pre' in self.cfg['KD']['NORM']:
                         pred = normalize(pred, self.cfg['KD']['NORM'])
                         pred_t = normalize(pred_t, self.cfg['KD']['NORM'])
                     pred_t = tf.reduce_mean(pred_t, axis=0)
@@ -207,7 +207,7 @@ class Distiller(Trainer):
                     print(tf.reduce_min(alpha), tf.reduce_max(alpha), tf.reduce_mean(alpha))
                     print(tf.reduce_min(pred_t), tf.reduce_max(pred_t), tf.reduce_mean(pred_t))
                 
-                if 'post' in self.cfg['KD']['NORM']:
+                if self.cfg['KD']['NORM'] and 'post' in self.cfg['KD']['NORM']:
                     pred = normalize(pred, self.cfg['KD']['NORM'])
                     pred_t = normalize(pred_t, self.cfg['KD']['NORM'])
 
@@ -234,6 +234,11 @@ class Distiller(Trainer):
                     elif self.cfg['KD']['FILTER'] == "confidence":
                         w = loss_filter(pred_t)[...,0]
                         aux_loss = aux_loss * w
+                    elif self.cfg['KD']['WEIGHT'] == "iou":
+                        iou_t = mIoU(y, pred_t, reduce=False)
+                        iou_s = mIoU(y, pred, reduce=False)
+                        w = tf.sigmoid(iou_t / (iou_s + 1e-5) - 1) * 2
+                        aux_loss = aux_loss * tf.cast(w, tf.float32)[:,None,None]
                         
                 # elif self.cfg['KD']['LOSS'] == 'logsum':
                 #     feature-based distillation

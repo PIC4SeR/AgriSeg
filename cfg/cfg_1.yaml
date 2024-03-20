@@ -7,8 +7,8 @@ VERBOSE: False
 NAME: null
 SAVE_BEST: True
 
-HP_SEARCH: True
-HP_SEARCH_NAME: 'hp_norm_norm'
+HP_SEARCH: False
+HP_SEARCH_NAME: ''
 HP_SEARCH_DIR: 'trials'
 N_TRIALS: 8
 
@@ -23,6 +23,7 @@ PADAIN:
 UNISTYLE: False
 WHITEN_LAYERS: []
 TEACHERS: null
+WEIGHTS: null
 SOUP: False
 SMA: False
 
@@ -42,12 +43,12 @@ WCTA: False
 FWCTA: False
 
 # paths
-DATA_PATH: '../AgriSeg_Dataset/'
+DATA_PATH: '/ssd1/sa58728/AgriSeg_Dataset/'
 MODEL_PATH: 'bin/'
 LOG_PATH: 'logs/'
 
 # preprocess
-IMG_SIZE_TEST: [640,480]
+IMG_SIZE_TEST: [224,224]
 IMG_SIZE: 224
 SPLIT_SIZE: 0.1
 BATCH_SIZE: 64
@@ -62,11 +63,16 @@ METRIC: 'iou'
 AUX_LOSS: False
 KD:
     ALPHA: 0.1
-    T: 3
+    T: 2
     ENSEMBLE: 'mean'
-    LOSS: 'kld' # 'kld' or 'mse' or 'mae' or 'logsum' or 'old'
+    LOSS: 'old' # 'kld' or 'mse' or 'mae' or 'logsum' or 'old'
     FILTER: False
-    NORM: True
+    NORM: '' # 'pre_norm' or 'post_norm' or 'pre_std' or 'post_std'
+    WEIGHT: null
+
+XDED:
+    ALPHA: 0.001
+    T: 2
 
 CL:
     TEMP: 0.5
