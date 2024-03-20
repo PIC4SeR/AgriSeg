@@ -15,7 +15,7 @@ N_TRIALS: 8
 CITYSCAPES: False
 
 # DG methodology
-DG: True
+DG: False
 METHOD: null
 PADAIN:
     P: 0.001
@@ -23,12 +23,13 @@ PADAIN:
 UNISTYLE: False
 WHITEN_LAYERS: []
 TEACHERS: null
+WEIGHTS: null
 SOUP: False
 SMA: False
 
 # dataset
-TARGET: ['tree_2','chard','lettuce','vineyard']
-SOURCE: ['tree_2','chard','lettuce','vineyard']
+TARGET: null
+SOURCE: null
 SUBSAMPLE: True
 NORM: 'tf' # 'tf' or 'torch'
 STYLE_AUG: False
@@ -42,12 +43,12 @@ WCTA: False
 FWCTA: False
 
 # paths
-DATA_PATH: '../AgriSeg_Dataset/'
+DATA_PATH: '/ssd1/sa58728/AgriSeg_Dataset/'
 MODEL_PATH: 'bin/'
 LOG_PATH: 'logs/'
 
 # preprocess
-IMG_SIZE_TEST: [640,480]
+IMG_SIZE_TEST: [224,224]
 IMG_SIZE: 224
 SPLIT_SIZE: 0.1
 BATCH_SIZE: 64
@@ -66,8 +67,13 @@ KD:
     ENSEMBLE: 'mean'
     LOSS: 'kld' # 'kld' or 'mse' or 'mae' or 'logsum' or 'old'
     FILTER: False
-    NORM: False
-    WEIGHT: 'iou'
+    NORM: '' # 'pre_norm' or 'post_norm' or 'pre_std' or 'post_std'
+    WEIGHT: null
+
+XDED:
+    ALPHA: 0.001
+    T: 2
+
 CL:
     TEMP: 0.5
     WEIGHT: 0.0

@@ -1,8 +1,8 @@
 #!/bin/bash
 
 domains="vineyard_real"
-meth="KD"
-name="test_cwd"
+meth="PADAIN"
+name="test_padain"
 
 for i in 1 2 3 4 5; do # Multiple runs
     for target in $domains; do # Iterate on domains

@@ -1,7 +1,7 @@
 #!/bin/bash
     
 domains="vineyard_real"
-meth="KD"
+meth="None"
 name="test_wcta"
 
 for i in 1 2 3 4 5; do # Multiple runs
