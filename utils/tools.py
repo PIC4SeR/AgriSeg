@@ -187,7 +187,7 @@ def get_cfg(args):
     cfg['KD']['T'] = args.temperature if args.temperature is not None else cfg['KD']['T']
     cfg['WHITEN_LAYERS'] = args.whiten_layers if args.whiten_layers is not None else cfg['WHITEN_LAYERS']
     cfg['ID'] = args.id if args.id is not None else 0
-    cfg['ERM_TEACHERS'] = True if args.erm_teacher else False
+    cfg['ERM_TEACHER'] = True if args.erm_teacher else False
     cfg['WEIGHTS'] = args.weights if args.weights is not None else None
     cfg['TEST'] = True if args.test else False
     cfg['TEACHERS'] = f"{cfg['NORM']}_{'style' if cfg['STYLE_AUG'] else 'geom'}" + \

@@ -7,8 +7,8 @@ VERBOSE: False
 NAME: null
 SAVE_BEST: True
 
-HP_SEARCH: True
-HP_SEARCH_NAME: 'end_w'
+HP_SEARCH: False
+HP_SEARCH_NAME: ''
 HP_SEARCH_DIR: 'trials'
 N_TRIALS: 8
 
@@ -16,7 +16,7 @@ CITYSCAPES: False
 
 # DG methodology
 DG: True
-METHOD: KD
+METHOD: null
 PADAIN:
     P: 0.001
     EPS: 1e-5
@@ -39,11 +39,11 @@ RND_GREY: 0.1
 RND_JITTER: 1.0
 RND_JITTER_RNG: 0.4
 ZCA: False
-WCTA: False ############################################################################
+WCTA: False
 FWCTA: False
 
 # paths
-DATA_PATH: '/ssd1/sa58728/AgriSeg_Dataset/'
+DATA_PATH: '/media/data/Datasets/AgriSeg_Dataset/'
 MODEL_PATH: 'bin/'
 LOG_PATH: 'logs/'
 
@@ -62,13 +62,13 @@ METRIC: 'iou'
 
 AUX_LOSS: False
 KD:
-    ALPHA: 1 ########################################################################
-    T: 3 ############################################################################
+    ALPHA: 0.1
+    T: 2
     ENSEMBLE: 'mean'
     LOSS: 'kld' # 'kld' or 'mse' or 'mae' or 'logsum' or 'old'
-    FILTER: False
-    NORM: '' # 'pre_norm' or 'post_norm' or 'pre_std' or 'post_std' #################
-    WEIGHT: null ####################################################################
+    FILTER: null 
+    NORM: '' # 'pre_norm' or 'post_norm' or 'pre_std' or 'post_std'
+    WEIGHT: null
 
 XDED:
     ALPHA: 0.001
