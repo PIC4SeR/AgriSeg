@@ -23,8 +23,8 @@ class HPSearcher:
             # "LR": [5e-5, 5e-4],
             # "TARGET": ["tree_2", "chard", "lettuce", "vineyard"],
             # "FREEZE_BACKBONE": [True, False],
-            "T": [2],
-            "ALPHA": [0.1, 0.3],
+            "T": [2, 3],
+            "ALPHA": [0.1],
             "WCTA": [0, 0.001],
             # "SOUP": ['uniform', False],
             # "STYLE_AUG": [True, False],
@@ -32,14 +32,14 @@ class HPSearcher:
             # "FILTER": ['error', False]
             "NORM": [None, "post_norm"],
             # "TEACHERS": ["tf_geom_wcta"],
-            "WEIGHT": ['iou'],
+            # "WEIGHT": ['iou'],
             # "CL": [0.1, 0.5, 1.0, 2.0, 5.0],
             }
     
     def get_random_hps(self):
 
-        self.cfg['KD']['T'] = self.trial.suggest_categorical("T", [2])
-        self.cfg['KD']['ALPHA'] = self.trial.suggest_categorical("ALPHA", [0.1, 0.3])
+        self.cfg['KD']['T'] = self.trial.suggest_categorical("T", [2, 3])
+        self.cfg['KD']['ALPHA'] = self.trial.suggest_categorical("ALPHA", [0.1])
         # self.cfg['KD']['FILTER'] = self.trial.suggest_categorical("FILTER", ['error', False])
         # self.cfg['KD']['SOUP'] = self.trial.suggest_categorical("SOUP", ['uniform', False])
         self.cfg['WCTA'] = self.trial.suggest_categorical("WCTA", [0, 0.001])
@@ -53,7 +53,7 @@ class HPSearcher:
         # self.cfg['WHITEN_LAYERS'] = self.trial.suggest_categorical("WHITEN_LAYERS", [(),(0,0),(0,1),(0,1,2)])
         # self.cfg['ADAMW']['LR'] = self.trial.suggest_categorical("LR", [5e-5, 5e-4])
         # self.cfg['FREEZE_BACKBONE'] = self.trial.suggest_categorical("FREEZE_BACKBONE", [True, False])        
-        self.cfg['KD']['WEIGHT'] = self.trial.suggest_categorical("WEIGHT", ['iou'])
+        # self.cfg['KD']['WEIGHT'] = self.trial.suggest_categorical("WEIGHT", ['iou'])
         # self.cfg['CL']['TEMP'] = self.trial.suggest_categorical("CL", [0.1, 0.5, 1.0, 2.0, 5.0])
 
         if self.cfg['VERBOSE']:
@@ -64,7 +64,7 @@ class HPSearcher:
         # print(f"FILTER={self.cfg['KD']['FILTER']}")
         # print(f"FWCTA={self.cfg['FWCTA']}, WHITEN_LAYERS={self.cfg['WHITEN_LAYERS']}")
         # print(f"FILTER={self.cfg['KD']['FILTER']}")
-        print(f"NORM={self.cfg['KD']['NORM']}, WCTA={self.cfg['WCTA']}, TEACHERS={self.cfg['TEACHERS']}, WEIGHT={self.cfg['KD']['WEIGHT']}")
+        print(f"NORM={self.cfg['KD']['NORM']}, WCTA={self.cfg['WCTA']}")
         print(f"T={self.cfg['KD']['T']}, ALPHA={self.cfg['KD']['ALPHA']}")
     
     def objective(self, trial):

@@ -7,8 +7,8 @@ VERBOSE: False
 NAME: null
 SAVE_BEST: True
 
-HP_SEARCH: False
-HP_SEARCH_NAME: ''
+HP_SEARCH: True
+HP_SEARCH_NAME: 'last_hope'
 HP_SEARCH_DIR: 'trials'
 N_TRIALS: 8
 
@@ -16,7 +16,7 @@ CITYSCAPES: False
 
 # DG methodology
 DG: True
-METHOD: null
+METHOD: KD
 PADAIN:
     P: 0.001
     EPS: 1e-5
@@ -32,18 +32,18 @@ TARGET: ['tree_2','chard','lettuce','vineyard']
 SOURCE: ['tree_2','chard','lettuce','vineyard']
 SUBSAMPLE: True
 NORM: 'tf' # 'tf' or 'torch'
-STYLE_AUG: False
 RND_FLIP: 0.5
 RND_CROP: 0.5
+STYLE_AUG: False
 RND_GREY: 0.1
 RND_JITTER: 1.0
 RND_JITTER_RNG: 0.4
 ZCA: False
-WCTA: False
+WCTA: 0
 FWCTA: False
 
 # paths
-DATA_PATH: '/ssd1/sa58728/AgriSeg_Dataset/'
+DATA_PATH: '/media/data/Datasets/AgriSeg_Dataset/'
 MODEL_PATH: 'bin/'
 LOG_PATH: 'logs/'
 
@@ -63,11 +63,11 @@ METRIC: 'iou'
 AUX_LOSS: False
 KD:
     ALPHA: 0.1
-    T: 2
+    T: 3
     ENSEMBLE: 'mean'
-    LOSS: 'old' # 'kld' or 'mse' or 'mae' or 'logsum' or 'old'
+    LOSS: 'kld' # 'kld' or 'mse' or 'mae' or 'logsum' or 'old'
     FILTER: False
-    NORM: '' # 'pre_norm' or 'post_norm' or 'pre_std' or 'post_std'
+    NORM: null # 'pre_norm' or 'post_norm' or 'pre_std' or 'post_std'
     WEIGHT: null
 
 XDED:

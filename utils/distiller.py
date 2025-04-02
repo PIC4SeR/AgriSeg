@@ -150,7 +150,7 @@ class Distiller(Trainer):
     
     def get_teacher(self):
         domains = [w for w in self.cfg['SOURCE'] if w != self.cfg['TARGET']]
-        if self.cfg['ERM_TEACHERS']:
+        if self.cfg['ERM_TEACHER']:
             weights = [f'teachers/erm/teacher_{self.cfg["TARGET"]}.h5']
         else:
             weights = [f'teachers/{self.cfg["TEACHERS"]}/teacher_{w}.h5' for w in domains]
