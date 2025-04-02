@@ -6,7 +6,7 @@
 </h1>
 
 <p align="center">
-  <img src="https://github.com/PIC4SeR/AgriSeg/blob/master/assets/scheme.pdf" alt="Graphical abstract" width="450"/>
+  <img src="https://github.com/PIC4SeR/AgriSeg/blob/46462c38e3e2da198e45696ff02c2c67f5fe5675/assets/scheme.svg" alt="Graphical abstract" width="450"/>
 </p>
 
 In recent years, precision agriculture has gradually oriented farming closer to automation processes to support all the activities related to field management. Service robotics plays a predominant role in this evolution by deploying autonomous agents that can navigate fields while performing tasks without human intervention, such as monitoring, spraying, and harvesting. To execute these precise actions, mobile robots need a real-time perception system that understands their surroundings and identifies their targets in the wild. Generalizing to new crops and environmental conditions is critical for practical applications, as labeled samples are rarely available. 
